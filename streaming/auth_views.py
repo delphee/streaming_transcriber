@@ -21,15 +21,19 @@ def web_login(request):
         return redirect('dashboard')
 
     if request.method == 'POST':
-        email = request.POST.get('email', '').lower().strip()
+        email_or_username = request.POST.get('email', '').lower().strip()
         password = request.POST.get('password', '')
 
-        # Find user by email
+        # Try to find user by email first, then username
+        user = None
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(email=email_or_username)
         except User.DoesNotExist:
-            messages.error(request, 'Invalid email or password')
-            return render(request, 'streaming/login.html')
+            try:
+                user = User.objects.get(username=email_or_username)
+            except User.DoesNotExist:
+                messages.error(request, 'Invalid email/username or password')
+                return render(request, 'streaming/login.html')
 
         # Authenticate
         user = authenticate(request, username=user.username, password=password)
@@ -38,7 +42,7 @@ def web_login(request):
             login(request, user)
             return redirect('dashboard')
         else:
-            messages.error(request, 'Invalid email or password')
+            messages.error(request, 'Invalid email/username or password')
 
     return render(request, 'streaming/login.html')
 

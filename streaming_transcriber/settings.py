@@ -202,6 +202,14 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Authentication URLs
-LOGIN_URL = 'web_login'  # or '/login/'
-LOGIN_REDIRECT_URL = 'dashboard'
-LOGOUT_REDIRECT_URL = 'web_login'
+LOGIN_URL = '/login/'  # or '/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/login/'
+
+# CSRF Settings
+CSRF_TRUSTED_ORIGINS = [
+    'https://desolate-dawn-05629-57e49d86c525.herokuapp.com',
+]
+
+# Also make sure you have these for production:
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
