@@ -207,6 +207,10 @@ class StreamingConsumer(AsyncWebsocketConsumer):
     def save_transcript_segment(self, event):
         """Save a transcript segment to the database"""
         try:
+            # Only save final transcripts to avoid duplicates
+            if not event.end_of_turn:
+                return
+
             # Get or create speaker
             speaker = None
             if hasattr(event, 'speaker_label') and event.speaker_label:
@@ -221,17 +225,43 @@ class StreamingConsumer(AsyncWebsocketConsumer):
                 if created:
                     print(f"👤 New speaker created: {event.speaker_label}")
 
+            # Extract timestamps from words array if available
+            start_time = None
+            end_time = None
+            confidence = None
+
+            if hasattr(event, 'words') and event.words:
+                # Get start time from first word
+                if len(event.words) > 0 and hasattr(event.words[0], 'start'):
+                    start_time = event.words[0].start
+
+                # Get end time from last word
+                if len(event.words) > 0 and hasattr(event.words[-1], 'end'):
+                    end_time = event.words[-1].end
+
+                # Calculate average confidence from all words
+                confidences = [w.confidence for w in event.words if hasattr(w, 'confidence') and w.confidence]
+                if confidences:
+                    confidence = sum(confidences) / len(confidences)
+
             # Create transcript segment
             segment = TranscriptSegment.objects.create(
                 conversation=self.conversation,
                 speaker=speaker,
                 text=event.transcript,
-                is_final=event.end_of_turn,
+                is_final=True,  # Always true now since we filter above
                 turn_order=event.turn_order if hasattr(event, 'turn_order') else None,
-                confidence=event.confidence if hasattr(event, 'confidence') else None,
+                start_time=start_time,
+                end_time=end_time,
+                confidence=confidence,
             )
 
-            print(f"💾 Saved transcript: {event.transcript[:50]}... (final: {event.end_of_turn})")
+            duration = ""
+            if start_time and end_time:
+                duration_ms = end_time - start_time
+                duration = f" ({duration_ms}ms)"
+
+            print(f"💾 Saved final transcript{duration}: {event.transcript[:50]}...")
 
         except Exception as e:
             print(f"❌ Error saving transcript: {e}")

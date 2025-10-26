@@ -1,0 +1,467 @@
+{% extends 'streaming/base.html' %}
+
+{% block title %}{{ conversation.title|default:"Conversation" }} - Conversation Intelligence Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+    .conversation-header {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+    }
+    
+    .conversation-header h1 {
+        margin: 0 0 1rem 0;
+        font-weight: 600;
+        font-size: 1.8rem;
+    }
+    
+    .header-meta {
+        display: flex;
+        gap: 2rem;
+        flex-wrap: wrap;
+    }
+    
+    .header-meta-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .header-meta-item i {
+        font-size: 1.2rem;
+        opacity: 0.9;
+    }
+    
+    .transcript-section {
+        background: white;
+        border-radius: 8px;
+        padding: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        margin-bottom: 2rem;
+    }
+    
+    .section-title {
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid var(--light-bg);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .transcript-segment {
+        padding: 1.25rem;
+        margin-bottom: 0.75rem;
+        border-left: 4px solid var(--border-color);
+        background: var(--light-bg);
+        border-radius: 0 6px 6px 0;
+        transition: all 0.2s;
+    }
+    
+    .transcript-segment:hover {
+        border-left-color: var(--primary-color);
+        background: white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    
+    .segment-speaker {
+        font-weight: 600;
+        color: var(--primary-color);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .segment-speaker i {
+        font-size: 1rem;
+    }
+    
+    .segment-text {
+        color: #333;
+        line-height: 1.6;
+        font-size: 1rem;
+    }
+    
+    .segment-meta {
+        margin-top: 0.75rem;
+        display: flex;
+        gap: 1.5rem;
+        font-size: 0.85rem;
+        color: var(--secondary-color);
+    }
+    
+    .segment-meta span {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    
+    .speakers-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1rem;
+    }
+    
+    .speaker-card {
+        background: var(--light-bg);
+        padding: 1.25rem;
+        border-radius: 6px;
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .speaker-card.recording-user {
+        border-left-color: var(--success-color);
+        background: linear-gradient(to right, rgba(46, 125, 50, 0.05), var(--light-bg));
+    }
+    
+    .speaker-name {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .speaker-label {
+        font-size: 0.85rem;
+        color: var(--secondary-color);
+    }
+    
+    .speaker-stats {
+        margin-top: 0.75rem;
+        font-size: 0.85rem;
+        color: var(--secondary-color);
+    }
+    
+    .analysis-card {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        margin-bottom: 1rem;
+        border-left: 4px solid var(--info-color);
+    }
+    
+    .analysis-type {
+        font-weight: 600;
+        color: var(--info-color);
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.5px;
+        margin-bottom: 1rem;
+    }
+    
+    .analysis-content {
+        color: #333;
+        line-height: 1.6;
+        white-space: pre-wrap;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--secondary-color);
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+        opacity: 0.3;
+        margin-bottom: 1rem;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-box {
+        background: white;
+        padding: 1.25rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 0.25rem;
+    }
+    
+    .stat-label {
+        font-size: 0.85rem;
+        color: var(--secondary-color);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .confidence-indicator {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .confidence-high {
+        background: rgba(46, 125, 50, 0.1);
+        color: var(--success-color);
+    }
+    
+    .confidence-medium {
+        background: rgba(245, 124, 0, 0.1);
+        color: var(--warning-color);
+    }
+    
+    .confidence-low {
+        background: rgba(198, 40, 40, 0.1);
+        color: var(--danger-color);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Conversation Header -->
+<div class="conversation-header">
+    <h1>
+        <i class="bi bi-chat-left-text me-2"></i>
+        {% if conversation.title %}
+            {{ conversation.title }}
+        {% else %}
+            Conversation from {{ conversation.started_at|date:"M d, Y" }}
+        {% endif %}
+        
+        {% if conversation.is_active %}
+            <span class="badge bg-warning text-dark ms-2">
+                <i class="bi bi-broadcast"></i> Live
+            </span>
+        {% endif %}
+    </h1>
+    
+    <div class="header-meta">
+        <div class="header-meta-item">
+            <i class="bi bi-calendar3"></i>
+            <span>{{ conversation.started_at|date:"M d, Y g:i A" }}</span>
+        </div>
+        
+        <div class="header-meta-item">
+            <i class="bi bi-clock"></i>
+            <span>
+                {% if conversation.duration_seconds > 0 %}
+                    {{ conversation.duration_seconds }} seconds
+                {% else %}
+                    In progress
+                {% endif %}
+            </span>
+        </div>
+        
+        <div class="header-meta-item">
+            <i class="bi bi-person"></i>
+            <span>{{ conversation.recorded_by.get_full_name|default:conversation.recorded_by.username }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="stats-row">
+    <div class="stat-box">
+        <div class="stat-value">{{ segments.count }}</div>
+        <div class="stat-label">Transcript Segments</div>
+    </div>
+    
+    <div class="stat-box">
+        <div class="stat-value">{{ speakers.count }}</div>
+        <div class="stat-label">Speakers</div>
+    </div>
+    
+    <div class="stat-box">
+        <div class="stat-value">{{ analyses.count }}</div>
+        <div class="stat-label">AI Analyses</div>
+    </div>
+    
+    <div class="stat-box">
+        <div class="stat-value">
+            {% if conversation.is_analyzed %}
+                <i class="bi bi-check-circle-fill text-success"></i>
+            {% else %}
+                <i class="bi bi-hourglass-split text-secondary"></i>
+            {% endif %}
+        </div>
+        <div class="stat-label">Analysis Status</div>
+    </div>
+</div>
+
+<!-- Speakers -->
+{% if speakers %}
+<div class="transcript-section">
+    <h2 class="section-title">
+        <span><i class="bi bi-people me-2"></i>Speakers</span>
+    </h2>
+    
+    <div class="speakers-list">
+        {% for speaker in speakers %}
+        <div class="speaker-card {% if speaker.is_recording_user %}recording-user{% endif %}">
+            <div class="speaker-name">
+                {% if speaker.is_recording_user %}
+                    <i class="bi bi-mic-fill text-success"></i>
+                {% else %}
+                    <i class="bi bi-person-fill"></i>
+                {% endif %}
+                {% if speaker.identified_name %}
+                    {{ speaker.identified_name }}
+                {% else %}
+                    {{ speaker.speaker_label }}
+                {% endif %}
+                {% if speaker.name_confirmed %}
+                    <i class="bi bi-check-circle-fill text-success" title="Name confirmed"></i>
+                {% endif %}
+            </div>
+            <div class="speaker-label">{{ speaker.speaker_label }}</div>
+            <div class="speaker-stats">
+                <i class="bi bi-chat-quote me-1"></i>
+                {{ speaker.segments.count }} segment{{ speaker.segments.count|pluralize }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Transcript -->
+<div class="transcript-section">
+    <h2 class="section-title">
+        <span><i class="bi bi-file-text me-2"></i>Transcript</span>
+        <div class="action-buttons">
+            <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
+                <i class="bi bi-printer me-1"></i> Print
+            </button>
+        </div>
+    </h2>
+    
+    {% if segments %}
+        {% for segment in segments %}
+        <div class="transcript-segment">
+            <div class="segment-speaker">
+                <i class="bi bi-person-circle"></i>
+                {% if segment.speaker %}
+                    {% if segment.speaker.identified_name %}
+                        {{ segment.speaker.identified_name }}
+                    {% else %}
+                        {{ segment.speaker.speaker_label }}
+                    {% endif %}
+                {% else %}
+                    Unknown Speaker
+                {% endif %}
+            </div>
+            
+            <div class="segment-text">
+                {{ segment.text }}
+            </div>
+            
+            <div class="segment-meta">
+                {% if segment.start_time and segment.end_time %}
+                <span>
+                    <i class="bi bi-clock"></i>
+                    {{ segment.start_time|floatformat:0 }}ms - {{ segment.end_time|floatformat:0 }}ms
+                </span>
+                {% endif %}
+                
+                {% if segment.confidence %}
+                <span>
+                    <i class="bi bi-graph-up"></i>
+                    {% if segment.confidence >= 0.9 %}
+                        <span class="confidence-indicator confidence-high">{{ segment.confidence|floatformat:2 }} confidence</span>
+                    {% elif segment.confidence >= 0.7 %}
+                        <span class="confidence-indicator confidence-medium">{{ segment.confidence|floatformat:2 }} confidence</span>
+                    {% else %}
+                        <span class="confidence-indicator confidence-low">{{ segment.confidence|floatformat:2 }} confidence</span>
+                    {% endif %}
+                </span>
+                {% endif %}
+                
+                <span>
+                    <i class="bi bi-calendar3"></i>
+                    {{ segment.created_at|date:"g:i A" }}
+                </span>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <i class="bi bi-chat-left-text"></i>
+            <p>No transcript segments available yet</p>
+            {% if conversation.is_active %}
+                <p class="text-muted">Segments will appear here as the conversation progresses</p>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+<!-- AI Analyses -->
+{% if analyses %}
+<div class="transcript-section">
+    <h2 class="section-title">
+        <span><i class="bi bi-cpu me-2"></i>AI Analysis</span>
+    </h2>
+    
+    {% for analysis in analyses %}
+    <div class="analysis-card">
+        <div class="analysis-type">
+            <i class="bi bi-stars me-1"></i>
+            {{ analysis.analysis_type|title }}
+        </div>
+        <div class="analysis-content">{{ analysis.analysis_result }}</div>
+        
+        {% if analysis.key_points_detected %}
+        <div class="mt-3">
+            <strong>Key Points Detected:</strong>
+            <ul class="mt-2">
+                {% for point in analysis.key_points_detected %}
+                <li>{{ point }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        <div class="mt-3 text-muted">
+            <small>
+                <i class="bi bi-clock me-1"></i>
+                Generated {{ analysis.created_at|date:"M d, Y g:i A" }}
+            </small>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Actions -->
+<div class="transcript-section">
+    <div class="action-buttons">
+        <a href="{% url 'conversation_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Back to List
+        </a>
+        
+        {% if user.is_staff %}
+        <button class="btn btn-outline-primary" onclick="alert('Analysis feature coming soon!')">
+            <i class="bi bi-cpu me-1"></i> Run AI Analysis
+        </button>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
