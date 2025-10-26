@@ -7,5 +7,5 @@ def health_check(request):
     return JsonResponse({
         'status': 'ok',
         'service': 'streaming_transcriber',
-        'websocket_url': 'ws://desolate-dawn-05629.herokuapp.com/ws/stream/'
+        'websocket_url': 'wss://desolate-dawn-05629-57e49d86c525.herokuapp.com/ws/stream/'
     })
