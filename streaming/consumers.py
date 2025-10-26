@@ -18,8 +18,9 @@ from assemblyai.streaming.v3 import (
 
 class StreamingConsumer(AsyncWebsocketConsumer):
     async def connect(self):
+        print("WebSocket connect method called")
         await self.accept()
-
+        print("WebSocket accepted")
         # Store the event loop
         self.loop = asyncio.get_event_loop()
 
