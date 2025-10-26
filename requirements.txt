@@ -5,3 +5,4 @@ assemblyai==0.45.4
 psycopg2-binary==2.9.9
 python-decouple==3.8
 whitenoise==6.11.0
+dj_database_url==3.0.1
