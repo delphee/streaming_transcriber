@@ -1,6 +1,32 @@
 from django.urls import path
-from . import views
+from . import views, auth_views
 
 urlpatterns = [
-    path('', views.health_check, name='health_check'),
+    # Web Authentication
+    path('login/', auth_views.web_login, name='web_login'),
+    path('logout/', auth_views.web_logout, name='web_logout'),
+
+    # iOS API Authentication
+    path('api/auth/login/', auth_views.ios_login, name='ios_login'),
+    path('api/auth/verify/', auth_views.ios_verify_token, name='ios_verify_token'),
+    path('api/auth/logout/', auth_views.ios_logout, name='ios_logout'),
+
+    # Dashboard & Main Views
+    path('', views.dashboard, name='dashboard'),
+    path('conversations/', views.conversation_list, name='conversation_list'),
+    path('conversations/<str:conversation_id>/', views.conversation_detail, name='conversation_detail'),
+
+    # User Management (Admin only)
+    path('users/', views.user_management, name='user_management'),
+    path('users/create/', views.user_create, name='user_create'),
+    path('users/<int:user_id>/edit/', views.user_edit, name='user_edit'),
+    path('users/<int:user_id>/delete/', views.user_delete, name='user_delete'),
+
+    # User Profile & Settings
+    path('profile/', views.user_profile, name='user_profile'),
+    path('settings/', views.user_settings, name='user_settings'),
+
+    # API Endpoints for iOS
+    path('api/conversations/', views.api_conversation_list, name='api_conversation_list'),
+    path('api/conversations/<str:conversation_id>/', views.api_conversation_detail, name='api_conversation_detail'),
 ]

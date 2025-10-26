@@ -18,42 +18,58 @@ from assemblyai.streaming.v3 import (
 
 class StreamingConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        print("WebSocket connect method called")
-        await self.accept()
-        print("WebSocket accepted")
-        # Store the event loop
-        self.loop = asyncio.get_event_loop()
+        print("🔵 WebSocket connect method called")
 
-        # Set API key
-        aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
+        try:
+            await self.accept()
+            print("🔵 WebSocket accepted")
 
-        # Create streaming client with new v3 API
-        self.transcriber = StreamingClient(
-            StreamingClientOptions(
-                api_key=settings.ASSEMBLYAI_API_KEY,
-                sample_rate=16000,
+            # Store the event loop
+            self.loop = asyncio.get_event_loop()
+            print("🔵 Event loop stored")
+
+            # Set API key
+            aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
+            print("🔵 API key set")
+
+            # Create streaming client with new v3 API
+            self.transcriber = StreamingClient(
+                StreamingClientOptions(
+                    api_key=settings.ASSEMBLYAI_API_KEY,
+                    sample_rate=16000,
+                )
             )
-        )
+            print("🔵 StreamingClient created")
 
-        # Attach event handlers
-        self.transcriber.on(StreamingEvents.Begin, self.on_begin)
-        self.transcriber.on(StreamingEvents.Turn, self.on_turn)
-        self.transcriber.on(StreamingEvents.Error, self.on_error)
-        self.transcriber.on(StreamingEvents.Termination, self.on_terminated)
+            # Attach event handlers
+            self.transcriber.on(StreamingEvents.Begin, self.on_begin)
+            self.transcriber.on(StreamingEvents.Turn, self.on_turn)
+            self.transcriber.on(StreamingEvents.Error, self.on_error)
+            self.transcriber.on(StreamingEvents.Termination, self.on_terminated)
+            print("🔵 Event handlers attached")
 
-        # Create session parameters
-        params = StreamingSessionParameters(
-            sample_rate=16000,
-            encoding='pcm_s16le',
-        )
+            # Create session parameters
+            params = StreamingSessionParameters(
+                sample_rate=16000,
+                encoding='pcm_s16le',
+            )
+            print("🔵 Session parameters created")
 
-        # Connect to AssemblyAI with parameters
-        await asyncio.to_thread(self.transcriber.connect, params)
+            # Connect to AssemblyAI with parameters
+            await asyncio.to_thread(self.transcriber.connect, params)
+            print("🔵 Connected to AssemblyAI")
 
-        await self.send(text_data=json.dumps({
-            'type': 'connection',
-            'message': 'Connected to streaming service'
-        }))
+            await self.send(text_data=json.dumps({
+                'type': 'connection',
+                'message': 'Connected to streaming service'
+            }))
+            print("🔵 Connection message sent")
+
+        except Exception as e:
+            print(f"❌ Error in connect: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            await self.close()
 
     async def disconnect(self, close_code):
         if hasattr(self, 'transcriber'):

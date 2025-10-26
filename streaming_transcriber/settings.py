@@ -13,16 +13,22 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 
+print("Reading settings...")
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-PRODUCTION = False
 DEBUG = True
+
+AWS_STORAGE_BUCKET_NAME = 'servicebid-audio-chunks'
+AWS_S3_REGION_NAME = 'us-east-1'
+
 # Production/Development configuration
-try:
+
+
     # Try to load production environment variable
-    PRODUCTION = os.environ.get('production') == 'True'
-except KeyError:
+PRODUCTION = os.environ.get('production') == 'True'
+
+if not PRODUCTION:
     # If not found, load from local development file
     try:
         from .localOnly import *
@@ -30,6 +36,8 @@ except KeyError:
         print("Using localOnly.py for configuration")
     except ImportError:
         print("Local variables not available!  Where is localOnly.py?")
+
+print(f"PRODUCTION: {PRODUCTION}")
 
 if not PRODUCTION:
     DEBUG = True # False
@@ -135,7 +143,7 @@ else:
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': locals().get('DATABASE_NAME', 'streaming'),
             'USER': locals().get('DATABASE_USER', 'streamer'),
-            'PASSWORD': locals().get('DATABASE_PASSWORD', DATABASE_USER_PASSWORD),
+            'PASSWORD': locals().get('DATABASE_USER_PASSWORD', DATABASE_USER_PASSWORD),
             'HOST': locals().get('DATABASE_HOST', 'localhost'),
             'PORT': locals().get('DATABASE_PORT', '5432'),
         }
