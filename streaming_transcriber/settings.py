@@ -37,7 +37,7 @@ if not PRODUCTION:
 else:
     SECRET_KEY = os.environ.get('SECRET_KEY')
     ALLOWED_HOSTS = ['*']
-    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+    ASSEMBLYAI_API_KEY = os.environ.get('ASSEMBLYAI_API_KEY')
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
