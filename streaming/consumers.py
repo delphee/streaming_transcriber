@@ -132,10 +132,42 @@ class StreamingConsumer(AsyncWebsocketConsumer):
             self.loop
         )
 
+    @sync_to_async
+    def check_speaker_analysis(self):
+        """
+        Check if it's time to run speaker analysis and run it if needed.
+        This runs periodically: at 2 minutes, then every 5 minutes.
+        """
+        from .ai_utils import should_run_speaker_analysis, analyze_conversation_speakers
+
+        # Only run if conversation is still active
+        if not self.conversation.is_active:
+            return
+
+        # Check if it's time to analyze
+        if should_run_speaker_analysis(self.conversation):
+            print(f"⏰ Running periodic speaker analysis for conversation {self.conversation.id}")
+            try:
+                # Run analysis in background thread to avoid blocking
+                import threading
+                analysis_thread = threading.Thread(
+                    target=analyze_conversation_speakers,
+                    args=(self.conversation,)
+                )
+                analysis_thread.start()
+            except Exception as e:
+                print(f"⚠️ Speaker analysis failed: {e}")
+
     def on_turn(self, client, event):
         # Save transcript to database
         asyncio.run_coroutine_threadsafe(
             self.save_transcript_segment(event),
+            self.loop
+        )
+
+        # Check if we should run speaker analysis
+        asyncio.run_coroutine_threadsafe(
+            self.check_speaker_analysis(),
             self.loop
         )
 
@@ -202,6 +234,14 @@ class StreamingConsumer(AsyncWebsocketConsumer):
 
         self.conversation.save()
         print(f"✅ Conversation {self.conversation.id} marked as complete")
+
+        # Run final speaker identification
+        from .ai_utils import analyze_conversation_speakers
+        try:
+            print("🔍 Running final speaker analysis...")
+            analyze_conversation_speakers(self.conversation)
+        except Exception as e:
+            print(f"⚠️ Final speaker identification failed: {e}")
 
     @sync_to_async
     def save_transcript_segment(self, event):
