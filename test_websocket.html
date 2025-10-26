@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>Streaming WebSocket Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:8000/ws/stream/');
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+
+        ws.onopen = function(e) {
+            statusDiv.innerHTML = '<span style="color: green;">✓ Connected!</span>';
+            console.log('WebSocket connected');
+        };
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            messagesDiv.innerHTML += `<p><strong>${data.type}:</strong> ${data.message || data.text || JSON.stringify(data)}</p>`;
+            console.log('Message:', data);
+        };
+
+        ws.onerror = function(error) {
+            statusDiv.innerHTML = '<span style="color: red;">✗ Error!</span>';
+            console.error('WebSocket error:', error);
+        };
+
+        ws.onclose = function(event) {
+            statusDiv.innerHTML = '<span style="color: orange;">Connection closed</span>';
+            console.log('WebSocket closed');
+        };
+    </script>
+</body>
+</html>
