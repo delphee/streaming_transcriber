@@ -1,8 +1,10 @@
 from django.urls import path
 from . import views, auth_views
+from django.views.generic import RedirectView
 
 urlpatterns = [
     # Web Authentication
+    path('accounts/login/', RedirectView.as_view(pattern_name='web_login', permanent=True)),
     path('login/', auth_views.web_login, name='web_login'),
     path('logout/', auth_views.web_logout, name='web_logout'),
 
