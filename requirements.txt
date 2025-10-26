@@ -4,5 +4,4 @@ daphne==4.1.2
 assemblyai==0.45.4
 psycopg2-binary==2.9.9
 python-decouple==3.8
-dj-database==url-3.0.1
 whitenoise==6.11.0
