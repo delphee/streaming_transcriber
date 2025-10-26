@@ -7,6 +7,18 @@ from django.utils import timezone
 from asgiref.sync import sync_to_async
 from datetime import timedelta
 
+from assemblyai.streaming.v3 import (
+    BeginEvent,
+    StreamingClient,
+    StreamingClientOptions,
+    StreamingError,
+    StreamingEvents,
+    StreamingSessionParameters,
+    TerminationEvent,
+    TurnEvent,
+)
+
+
 from .models import Conversation, Speaker, TranscriptSegment
 from .auth_views import get_user_from_token
 
