@@ -98,20 +98,33 @@ def update_speaker_names(conversation, speaker_mapping):
     """
     recording_user_name = conversation.recorded_by.get_full_name() or conversation.recorded_by.username
 
-    for speaker in conversation.speakers.all():
+    print(f"🔍 Updating speakers for conversation {conversation.id}")
+    print(f"📋 Speaker mapping: {speaker_mapping}")
+    print(f"👤 Recording user name: {recording_user_name}")
+
+    speakers = conversation.speakers.all()
+    print(f"🔢 Found {speakers.count()} speakers to update")
+
+    for speaker in speakers:
+        print(f"Processing {speaker.speaker_label}...")
+
         # Get identified name from mapping
         identified_name = speaker_mapping.get(speaker.speaker_label, "")
+        print(f"  Mapped name: '{identified_name}'")
 
         if identified_name and identified_name != "Unknown":
+            print(f"  Updating {speaker.speaker_label} to {identified_name}")
             speaker.identified_name = identified_name
 
             # Check if this is the recording user
             if recording_user_name.lower() in identified_name.lower() or identified_name.lower() in recording_user_name.lower():
                 speaker.is_recording_user = True
-                print(f"👤 Marked {speaker.speaker_label} as recording user ({identified_name})")
+                print(f"  👤 Marked {speaker.speaker_label} as recording user ({identified_name})")
 
             speaker.save()
-            print(f"✅ Updated {speaker.speaker_label} -> {identified_name}")
+            print(f"  ✅ Updated {speaker.speaker_label} -> {identified_name}")
+        else:
+            print(f"  ⏭️ Skipping {speaker.speaker_label} (name is Unknown or empty)")
 
     return True
 
