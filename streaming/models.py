@@ -11,6 +11,10 @@ class Conversation(models.Model):
     ended_at = models.DateTimeField(null=True, blank=True)
     duration_seconds = models.IntegerField(default=0)
 
+    audio_url = models.URLField(blank=True)  # S3 URL for the complete audio
+    audio_uploaded_at = models.DateTimeField(null=True, blank=True)
+    audio_delete_at = models.DateTimeField(null=True, blank=True)  # When to delete from S3
+
     # Status
     is_active = models.BooleanField(default=True)  # Currently streaming
     is_analyzed = models.BooleanField(default=False)  # AI analysis complete

@@ -18,9 +18,9 @@ from assemblyai.streaming.v3 import (
     TurnEvent,
 )
 
-
 from .models import Conversation, Speaker, TranscriptSegment
 from .auth_views import get_user_from_token
+from .audio_buffer import AudioBuffer
 
 
 class StreamingConsumer(AsyncWebsocketConsumer):
@@ -58,6 +58,10 @@ class StreamingConsumer(AsyncWebsocketConsumer):
             self.conversation = await self.create_conversation()
             print(f"📝 Conversation created: {self.conversation.id}")
 
+            # Initialize audio buffer
+            self.audio_buffer = AudioBuffer(sample_rate=16000, channels=1)
+            print("🎵 Audio buffer initialized")
+
             # Store the event loop
             self.loop = asyncio.get_event_loop()
             print("🔵 Event loop stored")
@@ -82,11 +86,11 @@ class StreamingConsumer(AsyncWebsocketConsumer):
             self.transcriber.on(StreamingEvents.Termination, self.on_terminated)
             print("🔵 Event handlers attached")
 
-            # Create session parameters with speaker diarization
+            # Create session parameters
             params = StreamingSessionParameters(
                 sample_rate=16000,
                 encoding='pcm_s16le',
-                enable_extra_session_information=True,  # Enable speaker diarization
+                enable_extra_session_information=True,
             )
             print("🔵 Session parameters created")
 
@@ -110,16 +114,19 @@ class StreamingConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, close_code):
         print(f"🔌 Disconnecting with code: {close_code}")
 
-        # Mark conversation as complete
-        if hasattr(self, 'conversation'):
-            await self.complete_conversation()
+        # Upload audio to S3 and process with batch API
+        if hasattr(self, 'conversation') and hasattr(self, 'audio_buffer'):
+            await self.finalize_conversation()
 
-        # WebSocket will close automatically
         print("🔌 Disconnect complete")
 
     async def receive(self, text_data=None, bytes_data=None):
         if bytes_data:
-            # Stream audio to AssemblyAI
+            # Add to audio buffer for later S3 upload
+            if hasattr(self, 'audio_buffer'):
+                self.audio_buffer.add_chunk(bytes_data)
+
+            # Stream audio to AssemblyAI for real-time transcription
             await asyncio.to_thread(self.transcriber.stream, bytes_data)
 
     def on_begin(self, client, event):
@@ -132,40 +139,14 @@ class StreamingConsumer(AsyncWebsocketConsumer):
             self.loop
         )
 
-    @sync_to_async
-    def check_speaker_analysis(self):
-        """
-        Check if it's time to run speaker analysis and run it if needed.
-        This runs periodically: at 2 minutes, then every 5 minutes.
-        """
-        from .ai_utils import should_run_speaker_analysis, analyze_conversation_speakers
-
-        # Only run if conversation is still active
-        if not self.conversation.is_active:
-            return
-
-        # Check if it's time to analyze
-        if should_run_speaker_analysis(self.conversation):
-            print(f"⏰ Running periodic speaker analysis for conversation {self.conversation.id}")
-            try:
-                # Run analysis in background thread to avoid blocking
-                import threading
-                analysis_thread = threading.Thread(
-                    target=analyze_conversation_speakers,
-                    args=(self.conversation,)
-                )
-                analysis_thread.start()
-            except Exception as e:
-                print(f"⚠️ Speaker analysis failed: {e}")
-
     def on_turn(self, client, event):
-        # Save transcript to database
+        # Save transcript to database (without speaker yet)
         asyncio.run_coroutine_threadsafe(
             self.save_transcript_segment(event),
             self.loop
         )
 
-        # Check if we should run speaker analysis
+        # Check if we should run periodic speaker analysis
         asyncio.run_coroutine_threadsafe(
             self.check_speaker_analysis(),
             self.loop
@@ -218,8 +199,11 @@ class StreamingConsumer(AsyncWebsocketConsumer):
         return conversation
 
     @sync_to_async
-    def complete_conversation(self):
-        """Mark conversation as complete and calculate duration"""
+    def finalize_conversation(self):
+        """Upload audio to S3 and trigger batch processing"""
+        print(f"🎬 Finalizing conversation {self.conversation.id}")
+
+        # Mark conversation as complete
         self.conversation.is_active = False
         self.conversation.ended_at = timezone.now()
 
@@ -235,35 +219,48 @@ class StreamingConsumer(AsyncWebsocketConsumer):
         self.conversation.save()
         print(f"✅ Conversation {self.conversation.id} marked as complete")
 
-        # Run final speaker identification
-        from .ai_utils import analyze_conversation_speakers
-        try:
-            print("🔍 Running final speaker analysis...")
-            analyze_conversation_speakers(self.conversation)
-        except Exception as e:
-            print(f"⚠️ Final speaker identification failed: {e}")
+        # Get WAV file from buffer
+        wav_data = self.audio_buffer.get_wav_file()
+
+        if not wav_data:
+            print("⚠️ No audio data to upload")
+            return
+
+        print(f"📦 Audio buffer size: {len(wav_data)} bytes")
+
+        # Upload to S3 with username in path
+        from .s3_utils import upload_audio_to_s3, schedule_audio_deletion
+        username = self.conversation.recorded_by.username
+        s3_url = upload_audio_to_s3(self.conversation.id, wav_data, username)
+
+        if s3_url:
+            self.conversation.audio_url = s3_url
+            self.conversation.audio_uploaded_at = timezone.now()
+            self.conversation.save()
+
+            # Schedule deletion based on retention policy
+            schedule_audio_deletion(self.conversation)
+
+            # Trigger batch processing for speaker diarization
+            from .batch_processing import process_conversation_with_batch_api
+            import threading
+
+            batch_thread = threading.Thread(
+                target=process_conversation_with_batch_api,
+                args=(self.conversation.id,)
+            )
+            batch_thread.start()
+            print("🚀 Started batch processing thread")
+        else:
+            print("❌ Failed to upload audio to S3")
 
     @sync_to_async
     def save_transcript_segment(self, event):
-        """Save a transcript segment to the database"""
+        """Save a transcript segment to the database (speaker will be added later)"""
         try:
             # Only save final transcripts to avoid duplicates
             if not event.end_of_turn:
                 return
-
-            # Get or create speaker
-            speaker = None
-            if hasattr(event, 'speaker_label') and event.speaker_label:
-                speaker, created = Speaker.objects.get_or_create(
-                    conversation=self.conversation,
-                    speaker_label=event.speaker_label,
-                    defaults={
-                        'identified_name': '',
-                        'is_recording_user': False,
-                    }
-                )
-                if created:
-                    print(f"👤 New speaker created: {event.speaker_label}")
 
             # Extract timestamps from words array if available
             start_time = None
@@ -284,12 +281,12 @@ class StreamingConsumer(AsyncWebsocketConsumer):
                 if confidences:
                     confidence = sum(confidences) / len(confidences)
 
-            # Create transcript segment
+            # Create transcript segment without speaker (will be added by batch processing)
             segment = TranscriptSegment.objects.create(
                 conversation=self.conversation,
-                speaker=speaker,
+                speaker=None,  # Will be assigned after batch processing
                 text=event.transcript,
-                is_final=True,  # Always true now since we filter above
+                is_final=True,
                 turn_order=event.turn_order if hasattr(event, 'turn_order') else None,
                 start_time=start_time,
                 end_time=end_time,
@@ -307,3 +304,27 @@ class StreamingConsumer(AsyncWebsocketConsumer):
             print(f"❌ Error saving transcript: {e}")
             import traceback
             traceback.print_exc()
+
+    @sync_to_async
+    def check_speaker_analysis(self):
+        """
+        Check if it's time to run speaker analysis.
+        Run at 2 minutes, then every 15 minutes.
+        """
+        from .ai_utils import should_run_speaker_analysis_v2
+
+        # Only run if conversation is still active and has audio uploaded
+        if not self.conversation.is_active or not self.conversation.audio_url:
+            return
+
+        # Check timing
+        if should_run_speaker_analysis_v2(self.conversation):
+            print(f"⏰ Running periodic speaker analysis for conversation {self.conversation.id}")
+            from .batch_processing import process_conversation_with_batch_api
+            import threading
+
+            analysis_thread = threading.Thread(
+                target=process_conversation_with_batch_api,
+                args=(self.conversation.id,)
+            )
+            analysis_thread.start()

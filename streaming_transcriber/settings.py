@@ -28,6 +28,8 @@ AWS_S3_REGION_NAME = 'us-east-1'
     # Try to load production environment variable
 PRODUCTION = os.environ.get('production') == 'True'
 
+print('PRODUCTION' if PRODUCTION else 'RUNNING LOCAL')
+
 if not PRODUCTION:
     # If not found, load from local development file
     try:
@@ -51,6 +53,7 @@ else:
     AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
     AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+    AUDIO_RETENTION_DAYS = os.environ.get('AUDIO_RETENTION_DAYS', '7')
 
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 AWS_S3_FILE_OVERWRITE = False  # Don't overwrite files with same name

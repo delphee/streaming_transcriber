@@ -211,3 +211,37 @@ def analyze_conversation_speakers(conversation):
         print(f"✅ Speaker identification complete for conversation {conversation.id}")
 
     return success
+
+
+def should_run_speaker_analysis_v2(conversation):
+    """
+    Determine if we should run batch speaker analysis.
+    - First analysis at 2 minutes
+    - Subsequent analyses every 15 minutes
+    """
+    if not conversation.started_at:
+        return False
+
+    from django.utils import timezone
+    import json
+
+    elapsed_seconds = (timezone.now() - conversation.started_at).total_seconds()
+
+    # Get last batch analysis time from conversation notes
+    last_analysis_time = 0
+    if conversation.notes:
+        try:
+            notes_data = json.loads(conversation.notes)
+            last_analysis_time = notes_data.get('last_batch_analysis', 0)
+        except:
+            pass
+
+    # First analysis at 2 minutes (120 seconds)
+    if last_analysis_time == 0 and elapsed_seconds >= 120:
+        return True
+
+    # Subsequent analyses every 15 minutes (900 seconds)
+    if last_analysis_time > 0 and (elapsed_seconds - last_analysis_time) >= 900:
+        return True
+
+    return False
