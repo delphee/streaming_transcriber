@@ -1,5 +1,5 @@
 {% extends 'streaming/base.html' %}
-
+{% load conversation_filters %}
 {% block title %}{{ conversation.title|default:"Conversation" }} - Conversation Intelligence Platform{% endblock %}
 
 {% block extra_css %}
