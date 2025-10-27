@@ -1,9 +1,10 @@
-import openai
+from openai import OpenAI
 from django.conf import settings
 import json
 import re
 
-openai.api_key = settings.OPENAI_API_KEY if hasattr(settings, 'OPENAI_API_KEY') else None
+# Initialize OpenAI client
+client = OpenAI(api_key=settings.OPENAI_API_KEY if hasattr(settings, 'OPENAI_API_KEY') else None)
 
 
 def identify_speakers_from_transcript(conversation):
@@ -54,9 +55,9 @@ If a speaker is likely {recording_user_name}, use their full name. If you cannot
 RESPOND WITH ONLY THE JSON OBJECT, NO OTHER TEXT."""
 
     try:
-        # Call GPT-4
-        response = openai.chat.completions.create(
-            model="gpt-4",
+        # Call GPT-4 using the new API
+        response = client.chat.completions.create(
+            model="gpt-4o",
             messages=[
                 {"role": "system",
                  "content": "You are an expert at analyzing conversations and identifying speakers from context clues."},
@@ -84,9 +85,12 @@ RESPOND WITH ONLY THE JSON OBJECT, NO OTHER TEXT."""
         return {}
     except Exception as e:
         print(f"❌ Error in speaker identification: {e}")
+        import traceback
+        traceback.print_exc()
         return {}
 
 
+# Rest of the functions remain the same...
 def update_speaker_names(conversation, speaker_mapping):
     """
     Update Speaker records with identified names from the mapping.
@@ -110,31 +114,6 @@ def update_speaker_names(conversation, speaker_mapping):
             print(f"✅ Updated {speaker.speaker_label} -> {identified_name}")
 
     return True
-
-
-def analyze_conversation_speakers(conversation):
-    """
-    Main function to analyze and identify speakers in a conversation.
-    Can be called multiple times during a conversation.
-    """
-    print(f"🔍 Starting speaker identification for conversation {conversation.id}")
-
-    # Identify speakers using GPT-4
-    speaker_mapping = identify_speakers_from_transcript(conversation)
-
-    if not speaker_mapping:
-        print("⚠️ No speaker mapping generated")
-        return False
-
-    # Update speaker records
-    success = update_speaker_names(conversation, speaker_mapping)
-
-    if success:
-        # Mark that we completed analysis
-        mark_analysis_completed(conversation)
-        print(f"✅ Speaker identification complete for conversation {conversation.id}")
-
-    return success
 
 
 def should_run_speaker_analysis(conversation):
@@ -196,3 +175,26 @@ def mark_analysis_completed(conversation):
     print(f"📝 Marked speaker analysis at {elapsed_seconds:.0f}s")
 
 
+def analyze_conversation_speakers(conversation):
+    """
+    Main function to analyze and identify speakers in a conversation.
+    Can be called multiple times during a conversation.
+    """
+    print(f"🔍 Starting speaker identification for conversation {conversation.id}")
+
+    # Identify speakers using GPT-4
+    speaker_mapping = identify_speakers_from_transcript(conversation)
+
+    if not speaker_mapping:
+        print("⚠️ No speaker mapping generated")
+        return False
+
+    # Update speaker records
+    success = update_speaker_names(conversation, speaker_mapping)
+
+    if success:
+        # Mark that we completed analysis
+        mark_analysis_completed(conversation)
+        print(f"✅ Speaker identification complete for conversation {conversation.id}")
+
+    return success
