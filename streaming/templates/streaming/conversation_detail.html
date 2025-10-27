@@ -233,6 +233,14 @@
         background: rgba(198, 40, 40, 0.1);
         color: var(--danger-color);
     }
+    
+    .speaker-timestamp {
+        font-weight: 400;
+        color: var(--secondary-color);
+        font-size: 0.9rem;
+        margin-left: 0.5rem;
+    }
+    
 </style>
 {% endblock %}
 
@@ -355,53 +363,61 @@
     </h2>
     
     {% if segments %}
-        {% for segment in segments %}
-        <div class="transcript-segment">
-            <div class="segment-speaker">
-                <i class="bi bi-person-circle"></i>
-                {% if segment.speaker %}
-                    {% if segment.speaker.identified_name %}
-                        {{ segment.speaker.identified_name }}
+        {% with grouped_segments=segments|group_segments %}
+            {% for group in grouped_segments %}
+            <div class="transcript-segment">
+                <div class="segment-speaker">
+                    <i class="bi bi-person-circle"></i>
+                    {% if group.speaker %}
+                        {% if group.speaker.identified_name %}
+                            {{ group.speaker.identified_name }}
+                        {% else %}
+                            {{ group.speaker.speaker_label }}
+                        {% endif %}
                     {% else %}
-                        {{ segment.speaker.speaker_label }}
+                        Unknown Speaker
                     {% endif %}
-                {% else %}
-                    Unknown Speaker
-                {% endif %}
-            </div>
-            
-            <div class="segment-text">
-                {{ segment.text }}
-            </div>
-            
-            <div class="segment-meta">
-                {% if segment.start_time and segment.end_time %}
-                <span>
-                    <i class="bi bi-clock"></i>
-                    {{ segment.start_time|floatformat:0 }}ms - {{ segment.end_time|floatformat:0 }}ms
-                </span>
-                {% endif %}
-                
-                {% if segment.confidence %}
-                <span>
-                    <i class="bi bi-graph-up"></i>
-                    {% if segment.confidence >= 0.9 %}
-                        <span class="confidence-indicator confidence-high">{{ segment.confidence|floatformat:2 }} confidence</span>
-                    {% elif segment.confidence >= 0.7 %}
-                        <span class="confidence-indicator confidence-medium">{{ segment.confidence|floatformat:2 }} confidence</span>
-                    {% else %}
-                        <span class="confidence-indicator confidence-low">{{ segment.confidence|floatformat:2 }} confidence</span>
+                    
+                    {% if group.start_time and group.end_time %}
+                        <span class="speaker-timestamp">
+                            ({{ group|format_time_range }})
+                        </span>
                     {% endif %}
-                </span>
-                {% endif %}
+                </div>
                 
-                <span>
-                    <i class="bi bi-calendar3"></i>
-                    {{ segment.created_at|date:"g:i A" }}
-                </span>
+                <div class="segment-text">
+                    {{ group.text }}
+                </div>
+                
+                <div class="segment-meta">
+                    <span>
+                        <i class="bi bi-chat-quote"></i>
+                        {{ group.segments|length }} segment{{ group.segments|length|pluralize }}
+                    </span>
+                    
+                    {% if group.confidence %}
+                    <span>
+                        <i class="bi bi-graph-up"></i>
+                        {% if group.confidence >= 0.9 %}
+                            <span class="confidence-indicator confidence-high">{{ group.confidence|floatformat:2 }} confidence</span>
+                        {% elif group.confidence >= 0.7 %}
+                            <span class="confidence-indicator confidence-medium">{{ group.confidence|floatformat:2 }} confidence</span>
+                        {% else %}
+                            <span class="confidence-indicator confidence-low">{{ group.confidence|floatformat:2 }} confidence</span>
+                        {% endif %}
+                    </span>
+                    {% endif %}
+                    
+                    {% if group.segments.0.created_at %}
+                    <span>
+                        <i class="bi bi-calendar3"></i>
+                        {{ group.segments.0.created_at|date:"g:i A" }}
+                    </span>
+                    {% endif %}
+                </div>
             </div>
-        </div>
-        {% endfor %}
+            {% endfor %}
+        {% endwith %}
     {% else %}
         <div class="empty-state">
             <i class="bi bi-chat-left-text"></i>
