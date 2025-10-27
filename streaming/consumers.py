@@ -200,7 +200,7 @@ class StreamingConsumer(AsyncWebsocketConsumer):
 
     @sync_to_async
     def finalize_conversation(self):
-        """Upload audio to S3 and trigger batch processing"""
+        """Upload audio to S3 and trigger FINAL high-quality batch processing"""
         print(f"🎬 Finalizing conversation {self.conversation.id}")
 
         # Mark conversation as complete
@@ -241,16 +241,17 @@ class StreamingConsumer(AsyncWebsocketConsumer):
             # Schedule deletion based on retention policy
             schedule_audio_deletion(self.conversation)
 
-            # Trigger batch processing for speaker diarization
+            # Trigger FINAL high-quality batch processing for speaker diarization
             from .batch_processing import process_conversation_with_batch_api
             import threading
 
             batch_thread = threading.Thread(
                 target=process_conversation_with_batch_api,
-                args=(self.conversation.id,)
+                args=(self.conversation.id,),
+                kwargs={'is_final': True}  # Use high-quality speech model
             )
             batch_thread.start()
-            print("🚀 Started batch processing thread")
+            print("🚀 Started FINAL batch processing thread with best speech model")
         else:
             print("❌ Failed to upload audio to S3")
 
@@ -308,8 +309,9 @@ class StreamingConsumer(AsyncWebsocketConsumer):
     @sync_to_async
     def check_speaker_analysis(self):
         """
-        Check if it's time to run speaker analysis.
+        Check if it's time to run PERIODIC speaker analysis.
         Run at 2 minutes, then every 15 minutes.
+        Uses faster settings for ongoing monitoring.
         """
         from .ai_utils import should_run_speaker_analysis_v2
 
@@ -319,12 +321,13 @@ class StreamingConsumer(AsyncWebsocketConsumer):
 
         # Check timing
         if should_run_speaker_analysis_v2(self.conversation):
-            print(f"⏰ Running periodic speaker analysis for conversation {self.conversation.id}")
+            print(f"⏰ Running PERIODIC speaker analysis for conversation {self.conversation.id}")
             from .batch_processing import process_conversation_with_batch_api
             import threading
 
             analysis_thread = threading.Thread(
                 target=process_conversation_with_batch_api,
-                args=(self.conversation.id,)
+                args=(self.conversation.id,),
+                kwargs={'is_final': False}  # Use faster settings for periodic analysis
             )
             analysis_thread.start()

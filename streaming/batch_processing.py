@@ -8,13 +8,19 @@ from .s3_utils import get_audio_from_s3
 from .ai_utils import identify_speakers_from_transcript, update_speaker_names
 
 
-def process_conversation_with_batch_api(conversation_id):
+def process_conversation_with_batch_api(conversation_id, is_final=False):
     """
     Process a conversation with AssemblyAI's batch API to get speaker diarization.
     This runs in a background thread.
+
+    Args:
+        conversation_id: ID of the conversation to process
+        is_final: If True, uses high-quality settings for final analysis after conversation ends.
+                 If False, uses faster settings for periodic analysis during conversation.
     """
     try:
-        print(f"🔄 Starting batch processing for conversation {conversation_id}")
+        analysis_type = "FINAL" if is_final else "PERIODIC"
+        print(f"🔄 Starting {analysis_type} batch processing for conversation {conversation_id}")
 
         # Get conversation
         conversation = Conversation.objects.get(id=conversation_id)
@@ -35,12 +41,27 @@ def process_conversation_with_batch_api(conversation_id):
         aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
 
         # Create transcriber config with speaker diarization
-        config = aai.TranscriptionConfig(
-            speaker_labels=True,  # Enable speaker diarization
-            speakers_expected=None,  # Auto-detect number of speakers
-        )
+        # Use advanced settings for final analysis
+        if is_final:
+            print(f"🎯 Using BEST speech model for final analysis")
+            config = aai.TranscriptionConfig(
+                speaker_labels=True,  # Enable speaker diarization
+                speakers_expected=None,  # Auto-detect number of speakers
+                speech_model=aai.SpeechModel.best,  # Use best (most accurate) model
+                # Additional quality settings for final analysis
+                punctuate=True,
+                format_text=True,
+                disfluencies=False,  # Remove "um", "uh" etc for cleaner transcript
+            )
+        else:
+            print(f"⚡ Using standard settings for periodic analysis")
+            config = aai.TranscriptionConfig(
+                speaker_labels=True,  # Enable speaker diarization
+                speakers_expected=None,  # Auto-detect number of speakers
+                # Use default/faster model for periodic checks
+            )
 
-        print(f"📤 Submitting audio to AssemblyAI batch API (using pre-signed URL)")
+        print(f"🔤 Submitting audio to AssemblyAI batch API (using pre-signed URL)")
 
         # Create transcriber and submit with pre-signed URL
         transcriber = aai.Transcriber(config=config)
@@ -63,9 +84,9 @@ def process_conversation_with_batch_api(conversation_id):
         identify_and_update_speakers(conversation)
 
         # Mark analysis as completed
-        mark_batch_analysis_completed(conversation)
+        mark_batch_analysis_completed(conversation, is_final)
 
-        print(f"✅ Batch processing complete for conversation {conversation_id}")
+        print(f"✅ {analysis_type} batch processing complete for conversation {conversation_id}")
         return True
 
     except Conversation.DoesNotExist:
@@ -166,10 +187,14 @@ def identify_and_update_speakers(conversation):
     return True
 
 
-def mark_batch_analysis_completed(conversation):
+def mark_batch_analysis_completed(conversation, is_final=False):
     """
     Mark that batch analysis was completed.
     Store timestamp in conversation notes.
+
+    Args:
+        conversation: Conversation object
+        is_final: If True, marks as final analysis. If False, marks as periodic analysis.
     """
     import json
 
@@ -185,7 +210,14 @@ def mark_batch_analysis_completed(conversation):
 
     # Update last batch analysis time
     notes_data['last_batch_analysis'] = elapsed_seconds
+
+    # Mark if this was the final high-quality analysis
+    if is_final:
+        notes_data['final_analysis_completed'] = True
+        notes_data['final_analysis_time'] = elapsed_seconds
+        print(f"🏁 Marked FINAL analysis at {elapsed_seconds:.0f}s")
+    else:
+        print(f"📝 Marked periodic analysis at {elapsed_seconds:.0f}s")
+
     conversation.notes = json.dumps(notes_data)
     conversation.save()
-
-    print(f"📝 Marked batch analysis at {elapsed_seconds:.0f}s")
