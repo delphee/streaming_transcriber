@@ -138,7 +138,7 @@ def schedule_audio_deletion(conversation):
     if not conversation.audio_url:
         return
 
-    delete_at = timezone.now() + timedelta(days=settings.AUDIO_RETENTION_DAYS)
+    delete_at = timezone.now() + timedelta(days=int(settings.AUDIO_RETENTION_DAYS))
     conversation.audio_delete_at = delete_at
     conversation.save()
 
