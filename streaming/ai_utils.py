@@ -9,7 +9,7 @@ client = OpenAI(api_key=settings.OPENAI_API_KEY if hasattr(settings, 'OPENAI_API
 
 def identify_speakers_from_transcript(conversation):
     """
-    Use GPT-4 to identify speaker names from the conversation transcript.
+    Use GPT-4o to identify speaker names from the conversation transcript.
     Returns a dictionary mapping speaker labels to identified names.
     """
     # Get all segments with speakers
@@ -17,6 +17,14 @@ def identify_speakers_from_transcript(conversation):
 
     if not segments.exists():
         print("No segments found for speaker identification")
+        return {}
+
+    # Get unique speaker labels
+    speakers = conversation.speakers.all()
+    speaker_labels = [s.speaker_label for s in speakers]
+
+    if not speaker_labels:
+        print("No speakers found for identification")
         return {}
 
     # Build transcript text with speaker labels
@@ -31,36 +39,45 @@ def identify_speakers_from_transcript(conversation):
     recording_user = conversation.recorded_by
     recording_user_name = recording_user.get_full_name() or recording_user.username
 
-    # Create prompt for GPT-4
+    # Create list of speakers for the prompt
+    speakers_list = ", ".join(speaker_labels)
+
+    # Create prompt for GPT-4o
     prompt = f"""Analyze this conversation transcript and identify the real names of the speakers.
 
 IMPORTANT CONTEXT:
 - This conversation was recorded by {recording_user_name} on their iOS device
 - {recording_user_name} is likely one of the speakers in this conversation
+- The speakers in this conversation are labeled: {speakers_list}
 - Look for self-introductions like "Hi, this is [name]" or "My name is [name]"
 - Look for others addressing speakers by name
-- If you cannot confidently identify a name, leave it as the speaker label
+- If you cannot confidently identify a name, use "Unknown"
 
 TRANSCRIPT:
 {transcript_text}
 
-Respond with ONLY a JSON object mapping speaker labels to identified names. Format:
+Respond with ONLY a JSON object mapping the EXACT speaker labels to identified names. 
+YOU MUST USE THE EXACT LABELS: {speakers_list}
+
+Format example (use the actual labels from this conversation):
 {{
-    "Speaker A": "John Smith",
-    "Speaker B": "Unknown"
+    "{speaker_labels[0]}": "John Smith",
+    "{speaker_labels[1] if len(speaker_labels) > 1 else 'B'}": "Unknown"
 }}
 
 If a speaker is likely {recording_user_name}, use their full name. If you cannot identify a speaker's name with reasonable confidence, use "Unknown".
 
+CRITICAL: Use the EXACT speaker labels ({speakers_list}) as keys in your JSON response.
+
 RESPOND WITH ONLY THE JSON OBJECT, NO OTHER TEXT."""
 
     try:
-        # Call GPT-4 using the new API
+        # Call GPT-4o using the new API
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system",
-                 "content": "You are an expert at analyzing conversations and identifying speakers from context clues."},
+                 "content": "You are an expert at analyzing conversations and identifying speakers from context clues. Always use the exact speaker labels provided."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
@@ -80,7 +97,7 @@ RESPOND WITH ONLY THE JSON OBJECT, NO OTHER TEXT."""
         return speaker_mapping
 
     except json.JSONDecodeError as e:
-        print(f"❌ Failed to parse GPT-4 response: {e}")
+        print(f"❌ Failed to parse GPT-4o response: {e}")
         print(f"Response was: {response_text}")
         return {}
     except Exception as e:
@@ -88,7 +105,6 @@ RESPOND WITH ONLY THE JSON OBJECT, NO OTHER TEXT."""
         import traceback
         traceback.print_exc()
         return {}
-
 
 # Rest of the functions remain the same...
 def update_speaker_names(conversation, speaker_mapping):
