@@ -61,7 +61,7 @@ def upload_audio_to_s3(conversation_id, audio_data, username):
 
         print(f"📁 S3 path: {s3_key}")
 
-        # Upload to S3
+        # Upload to S3 (private by default, no ACL needed)
         s3_client.put_object(
             Bucket=settings.AWS_STORAGE_BUCKET_NAME,
             Key=s3_key,
@@ -69,7 +69,7 @@ def upload_audio_to_s3(conversation_id, audio_data, username):
             ContentType='audio/wav'
         )
 
-        # Generate the S3 URL
+        # Generate the S3 URL (store the permanent path)
         s3_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{s3_key}"
 
         print(f"✅ Uploaded audio to S3: {s3_url}")
@@ -77,6 +77,35 @@ def upload_audio_to_s3(conversation_id, audio_data, username):
 
     except ClientError as e:
         print(f"❌ Error uploading to S3: {e}")
+        return None
+
+
+def generate_presigned_url(s3_url, expiration=3600):
+    """
+    Generate a pre-signed URL for temporary access to a private S3 file.
+    Default expiration is 1 hour (3600 seconds).
+    """
+    try:
+        s3_client = get_s3_client()
+
+        # Extract key from URL
+        key = s3_url.split('.amazonaws.com/')[-1]
+
+        # Generate pre-signed URL
+        presigned_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': settings.AWS_STORAGE_BUCKET_NAME,
+                'Key': key
+            },
+            ExpiresIn=expiration
+        )
+
+        print(f"🔗 Generated pre-signed URL (expires in {expiration}s)")
+        return presigned_url
+
+    except ClientError as e:
+        print(f"❌ Error generating pre-signed URL: {e}")
         return None
 
 

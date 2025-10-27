@@ -23,6 +23,14 @@ def process_conversation_with_batch_api(conversation_id):
             print("❌ No audio URL available for batch processing")
             return False
 
+        # Generate pre-signed URL for AssemblyAI to access the file
+        from .s3_utils import generate_presigned_url
+        presigned_url = generate_presigned_url(conversation.audio_url, expiration=7200)  # 2 hours
+
+        if not presigned_url:
+            print("❌ Failed to generate pre-signed URL")
+            return False
+
         # Configure AssemblyAI
         aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
 
@@ -32,11 +40,11 @@ def process_conversation_with_batch_api(conversation_id):
             speakers_expected=None,  # Auto-detect number of speakers
         )
 
-        print(f"📤 Submitting audio to AssemblyAI batch API: {conversation.audio_url}")
+        print(f"📤 Submitting audio to AssemblyAI batch API (using pre-signed URL)")
 
-        # Create transcriber and submit
+        # Create transcriber and submit with pre-signed URL
         transcriber = aai.Transcriber(config=config)
-        transcript = transcriber.transcribe(conversation.audio_url)
+        transcript = transcriber.transcribe(presigned_url)
 
         # Wait for completion (AssemblyAI SDK handles polling)
         print(f"⏳ Waiting for batch transcription to complete...")
