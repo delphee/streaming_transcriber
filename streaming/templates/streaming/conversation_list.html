@@ -1,5 +1,5 @@
 {% extends 'streaming/base.html' %}
-
+{% load tz %}
 {% block title %}Conversations - Conversation Intelligence Platform{% endblock %}
 
 {% block extra_css %}
@@ -218,7 +218,7 @@
         <div class="conversation-meta">
             <div class="meta-item">
                 <i class="bi bi-calendar3"></i>
-                <span>{{ conversation.started_at|date:"M d, Y g:i A" }}</span>
+                <span>{{ conversation.started_at|localtime|date:"M d, Y g:i A" }}</span>
             </div>
             
             <div class="meta-item">
