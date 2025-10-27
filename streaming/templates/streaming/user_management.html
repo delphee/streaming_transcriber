@@ -1,0 +1,310 @@
+{% extends 'streaming/base.html' %}
+
+{% block title %}User Management - Conversation Intelligence Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .page-header h1 {
+        margin: 0;
+        font-weight: 600;
+        font-size: 1.8rem;
+    }
+    
+    .user-card {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        margin-bottom: 1rem;
+        transition: all 0.3s;
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .user-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+    
+    .user-card.staff {
+        border-left-color: var(--success-color);
+    }
+    
+    .user-card.inactive {
+        border-left-color: var(--secondary-color);
+        opacity: 0.7;
+    }
+    
+    .user-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 1rem;
+    }
+    
+    .user-name {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #333;
+        margin: 0;
+    }
+    
+    .user-username {
+        color: var(--secondary-color);
+        font-size: 0.9rem;
+        margin-top: 0.25rem;
+    }
+    
+    .user-badges {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    
+    .user-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        padding: 1rem 0;
+        border-top: 1px solid var(--light-bg);
+        border-bottom: 1px solid var(--light-bg);
+        margin: 1rem 0;
+    }
+    
+    .info-item {
+        display: flex;
+        align-items: center;
+        color: var(--secondary-color);
+        font-size: 0.9rem;
+    }
+    
+    .info-item i {
+        margin-right: 0.5rem;
+        color: var(--primary-color);
+        font-size: 1.1rem;
+    }
+    
+    .feature-flags {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.75rem;
+    }
+    
+    .feature-badge {
+        padding: 0.3rem 0.7rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        background: var(--light-bg);
+        color: var(--secondary-color);
+    }
+    
+    .feature-badge.enabled {
+        background: rgba(46, 125, 50, 0.1);
+        color: var(--success-color);
+    }
+    
+    .user-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .empty-state {
+        background: white;
+        padding: 4rem 2rem;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .empty-state i {
+        font-size: 5rem;
+        color: var(--light-bg);
+        margin-bottom: 1rem;
+    }
+    
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .stat-box {
+        background: white;
+        padding: 1.25rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 0.25rem;
+    }
+    
+    .stat-label {
+        font-size: 0.85rem;
+        color: var(--secondary-color);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <div>
+        <h1><i class="bi bi-people-fill me-2"></i>User Management</h1>
+        <p class="mb-0 mt-2" style="opacity: 0.9;">Manage user accounts and permissions</p>
+    </div>
+    <div>
+        <a href="{% url 'user_create' %}" class="btn btn-light btn-lg">
+            <i class="bi bi-person-plus me-2"></i>Create New User
+        </a>
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="stats-row">
+    <div class="stat-box">
+        <div class="stat-value">{{ users|length }}</div>
+        <div class="stat-label">Total Users</div>
+    </div>
+    
+    <div class="stat-box">
+        <div class="stat-value">{{ users|length|add:"-1" }}</div>
+        <div class="stat-label">Active Users</div>
+    </div>
+    
+    <div class="stat-box">
+        <div class="stat-value">
+            {% for user in users %}{% if user.is_staff %}1{% endif %}{% endfor %}
+        </div>
+        <div class="stat-label">Admin Users</div>
+    </div>
+    
+    <div class="stat-box">
+        <div class="stat-value">
+            {% for user in users %}{% if user.profile.enable_real_time_coaching %}1{% endif %}{% endfor %}
+        </div>
+        <div class="stat-label">Coaching Enabled</div>
+    </div>
+</div>
+
+<!-- Users List -->
+{% if users %}
+    {% for user_item in users %}
+    <div class="user-card {% if user_item.is_staff %}staff{% endif %} {% if not user_item.is_active %}inactive{% endif %}">
+        <div class="user-header">
+            <div>
+                <h3 class="user-name">
+                    <i class="bi bi-person-circle me-2"></i>
+                    {% if user_item.get_full_name %}
+                        {{ user_item.get_full_name }}
+                    {% else %}
+                        {{ user_item.username }}
+                    {% endif %}
+                </h3>
+                <div class="user-username">@{{ user_item.username }}</div>
+            </div>
+            
+            <div class="user-badges">
+                {% if user_item.is_staff %}
+                    <span class="badge bg-success">
+                        <i class="bi bi-shield-check"></i> Admin
+                    </span>
+                {% endif %}
+                
+                {% if user_item.is_active %}
+                    <span class="badge bg-primary">
+                        <i class="bi bi-check-circle"></i> Active
+                    </span>
+                {% else %}
+                    <span class="badge bg-secondary">
+                        <i class="bi bi-x-circle"></i> Inactive
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="user-info">
+            <div class="info-item">
+                <i class="bi bi-envelope"></i>
+                <span>{{ user_item.email }}</span>
+            </div>
+            
+            <div class="info-item">
+                <i class="bi bi-calendar3"></i>
+                <span>Joined {{ user_item.date_joined|date:"M d, Y" }}</span>
+            </div>
+            
+            <div class="info-item">
+                <i class="bi bi-chat-left-text"></i>
+                <span>{{ user_item.conversations.count }} conversation{{ user_item.conversations.count|pluralize }}</span>
+            </div>
+            
+            <div class="info-item">
+                <i class="bi bi-clock-history"></i>
+                <span>Last login: {% if user_item.last_login %}{{ user_item.last_login|date:"M d, Y" }}{% else %}Never{% endif %}</span>
+            </div>
+        </div>
+        
+        <!-- Feature Flags -->
+        <div class="feature-flags">
+            <span class="feature-badge {% if user_item.profile.enable_real_time_coaching %}enabled{% endif %}">
+                <i class="bi bi-megaphone{% if user_item.profile.enable_real_time_coaching %}-fill{% endif %}"></i>
+                Real-time Coaching
+            </span>
+            <span class="feature-badge {% if user_item.profile.enable_talking_points_monitoring %}enabled{% endif %}">
+                <i class="bi bi-list-check"></i>
+                Talking Points
+            </span>
+            <span class="feature-badge {% if user_item.profile.enable_sentiment_alerts %}enabled{% endif %}">
+                <i class="bi bi-emoji-smile{% if user_item.profile.enable_sentiment_alerts %}-fill{% endif %}"></i>
+                Sentiment Alerts
+            </span>
+            <span class="feature-badge {% if user_item.profile.enable_speaker_identification %}enabled{% endif %}">
+                <i class="bi bi-person-badge{% if user_item.profile.enable_speaker_identification %}-fill{% endif %}"></i>
+                Speaker ID
+            </span>
+        </div>
+        
+        <div class="user-actions mt-3">
+            <a href="{% url 'user_edit' user_item.id %}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-pencil me-1"></i> Edit
+            </a>
+            
+            {% if user_item.id != user.id %}
+            <a href="{% url 'user_delete' user_item.id %}" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-trash me-1"></i> Delete
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="empty-state">
+        <i class="bi bi-people"></i>
+        <h3>No users found</h3>
+        <p class="text-muted">Create your first user to get started</p>
+        <a href="{% url 'user_create' %}" class="btn btn-primary mt-3">
+            <i class="bi bi-person-plus me-1"></i> Create User
+        </a>
+    </div>
+{% endif %}
+{% endblock %}

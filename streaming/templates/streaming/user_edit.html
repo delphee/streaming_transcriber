@@ -1,0 +1,485 @@
+{% extends 'streaming/base.html' %}
+
+{% block title %}Edit User - Conversation Intelligence Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+    }
+    
+    .page-header h1 {
+        margin: 0;
+        font-weight: 600;
+        font-size: 1.8rem;
+    }
+    
+    .page-header p {
+        margin: 0.5rem 0 0;
+        opacity: 0.9;
+    }
+    
+    .form-card {
+        background: white;
+        border-radius: 8px;
+        padding: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        margin-bottom: 2rem;
+    }
+    
+    .form-section {
+        margin-bottom: 2rem;
+        padding-bottom: 2rem;
+        border-bottom: 2px solid var(--light-bg);
+    }
+    
+    .form-section:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+    
+    .section-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: var(--primary-color);
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .section-title i {
+        font-size: 1.3rem;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #555;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .form-label i {
+        color: var(--primary-color);
+    }
+    
+    .form-label .required {
+        color: var(--danger-color);
+    }
+    
+    .form-control, .form-select {
+        border: 2px solid var(--border-color);
+        border-radius: 6px;
+        padding: 0.7rem 1rem;
+        transition: all 0.3s;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.2rem rgba(13, 71, 161, 0.15);
+    }
+    
+    .form-check {
+        padding: 0.75rem;
+        background: var(--light-bg);
+        border-radius: 6px;
+        margin-bottom: 0.75rem;
+        transition: all 0.2s;
+    }
+    
+    .form-check:hover {
+        background: white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    
+    .form-check-input {
+        width: 1.3rem;
+        height: 1.3rem;
+        margin-top: 0;
+    }
+    
+    .form-check-input:checked {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+    
+    .form-check-label {
+        font-weight: 500;
+        color: #333;
+        margin-left: 0.5rem;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .form-check-label small {
+        color: var(--secondary-color);
+        font-weight: 400;
+        margin-top: 0.25rem;
+    }
+    
+    .form-actions {
+        display: flex;
+        gap: 1rem;
+        padding-top: 1.5rem;
+        border-top: 2px solid var(--light-bg);
+        margin-top: 2rem;
+    }
+    
+    .btn-primary {
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+    }
+    
+    .btn-outline-secondary {
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+    }
+    
+    .help-text {
+        font-size: 0.85rem;
+        color: var(--secondary-color);
+        margin-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+    
+    .help-text i {
+        font-size: 1rem;
+    }
+    
+    .permission-card {
+        background: linear-gradient(to right, rgba(13, 71, 161, 0.05), white);
+        border-left: 4px solid var(--primary-color);
+        padding: 1rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+    }
+    
+    .user-info-card {
+        background: var(--light-bg);
+        border-radius: 6px;
+        padding: 1rem;
+        margin-bottom: 2rem;
+        display: flex;
+        gap: 2rem;
+        flex-wrap: wrap;
+    }
+    
+    .info-stat {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--secondary-color);
+    }
+    
+    .info-stat i {
+        color: var(--primary-color);
+        font-size: 1.2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <h1><i class="bi bi-pencil-square me-2"></i>Edit User</h1>
+    <p>Update user account details, permissions, and feature flags</p>
+</div>
+
+<!-- User Info Card -->
+<div class="user-info-card">
+    <div class="info-stat">
+        <i class="bi bi-calendar3"></i>
+        <span>Joined {{ user_to_edit.date_joined|date:"M d, Y" }}</span>
+    </div>
+    <div class="info-stat">
+        <i class="bi bi-clock-history"></i>
+        <span>Last login: {% if user_to_edit.last_login %}{{ user_to_edit.last_login|date:"M d, Y g:i A" }}{% else %}Never{% endif %}</span>
+    </div>
+    <div class="info-stat">
+        <i class="bi bi-chat-left-text"></i>
+        <span>{{ user_to_edit.conversations.count }} conversation{{ user_to_edit.conversations.count|pluralize }}</span>
+    </div>
+</div>
+
+<!-- Edit User Form -->
+<div class="form-card">
+    <form method="POST" action="{% url 'user_edit' user_to_edit.id %}">
+        {% csrf_token %}
+        
+        <!-- Account Details Section -->
+        <div class="form-section">
+            <h3 class="section-title">
+                <i class="bi bi-person-circle"></i>
+                Account Details
+            </h3>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="username" class="form-label">
+                        <i class="bi bi-at"></i>
+                        Username
+                    </label>
+                    <input 
+                        type="text" 
+                        class="form-control" 
+                        id="username" 
+                        name="username" 
+                        value="{{ user_to_edit.username }}"
+                        readonly
+                        disabled
+                        style="background-color: var(--light-bg);"
+                    >
+                    <div class="help-text">
+                        <i class="bi bi-info-circle"></i>
+                        Username cannot be changed
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="email" class="form-label">
+                        <i class="bi bi-envelope"></i>
+                        Email Address
+                        <span class="required">*</span>
+                    </label>
+                    <input 
+                        type="email" 
+                        class="form-control" 
+                        id="email" 
+                        name="email" 
+                        value="{{ user_to_edit.email }}"
+                        required
+                    >
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="first_name" class="form-label">
+                        <i class="bi bi-person"></i>
+                        First Name
+                    </label>
+                    <input 
+                        type="text" 
+                        class="form-control" 
+                        id="first_name" 
+                        name="first_name" 
+                        value="{{ user_to_edit.first_name }}"
+                    >
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="last_name" class="form-label">
+                        <i class="bi bi-person"></i>
+                        Last Name
+                    </label>
+                    <input 
+                        type="text" 
+                        class="form-control" 
+                        id="last_name" 
+                        name="last_name" 
+                        value="{{ user_to_edit.last_name }}"
+                    >
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="password" class="form-label">
+                        <i class="bi bi-key"></i>
+                        New Password
+                    </label>
+                    <input 
+                        type="password" 
+                        class="form-control" 
+                        id="password" 
+                        name="password" 
+                        placeholder="Leave blank to keep current password"
+                    >
+                    <div class="help-text">
+                        <i class="bi bi-info-circle"></i>
+                        Only fill this field to change the password
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Permissions Section -->
+        <div class="form-section">
+            <h3 class="section-title">
+                <i class="bi bi-shield-check"></i>
+                Permissions & Status
+            </h3>
+            
+            <div class="permission-card">
+                <div class="form-check">
+                    <input 
+                        class="form-check-input" 
+                        type="checkbox" 
+                        id="is_staff" 
+                        name="is_staff"
+                        {% if user_to_edit.is_staff %}checked{% endif %}
+                    >
+                    <label class="form-check-label" for="is_staff">
+                        <strong><i class="bi bi-shield-fill-check me-1"></i>Administrator Access</strong>
+                        <small>Can manage users, view all conversations, and access admin features</small>
+                    </label>
+                </div>
+                
+                <div class="form-check">
+                    <input 
+                        class="form-check-input" 
+                        type="checkbox" 
+                        id="is_active" 
+                        name="is_active"
+                        {% if user_to_edit.is_active %}checked{% endif %}
+                    >
+                    <label class="form-check-label" for="is_active">
+                        <strong><i class="bi bi-check-circle-fill me-1"></i>Account Active</strong>
+                        <small>User can log in and use the platform. Uncheck to disable account.</small>
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Feature Flags Section -->
+        <div class="form-section">
+            <h3 class="section-title">
+                <i class="bi bi-toggles"></i>
+                Feature Flags
+            </h3>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-check">
+                        <input 
+                            class="form-check-input" 
+                            type="checkbox" 
+                            id="enable_real_time_coaching" 
+                            name="enable_real_time_coaching"
+                            {% if user_to_edit.profile.enable_real_time_coaching %}checked{% endif %}
+                        >
+                        <label class="form-check-label" for="enable_real_time_coaching">
+                            <strong><i class="bi bi-megaphone me-1"></i>Real-time Coaching</strong>
+                            <small>Live AI coaching during conversations</small>
+                        </label>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input 
+                            class="form-check-input" 
+                            type="checkbox" 
+                            id="enable_talking_points_monitoring" 
+                            name="enable_talking_points_monitoring"
+                            {% if user_to_edit.profile.enable_talking_points_monitoring %}checked{% endif %}
+                        >
+                        <label class="form-check-label" for="enable_talking_points_monitoring">
+                            <strong><i class="bi bi-list-check me-1"></i>Talking Points Monitoring</strong>
+                            <small>Track key discussion topics</small>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="form-check">
+                        <input 
+                            class="form-check-input" 
+                            type="checkbox" 
+                            id="enable_sentiment_alerts" 
+                            name="enable_sentiment_alerts"
+                            {% if user_to_edit.profile.enable_sentiment_alerts %}checked{% endif %}
+                        >
+                        <label class="form-check-label" for="enable_sentiment_alerts">
+                            <strong><i class="bi bi-emoji-smile me-1"></i>Sentiment Alerts</strong>
+                            <small>Get notified of conversation tone changes</small>
+                        </label>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input 
+                            class="form-check-input" 
+                            type="checkbox" 
+                            id="enable_speaker_identification" 
+                            name="enable_speaker_identification"
+                            {% if user_to_edit.profile.enable_speaker_identification %}checked{% endif %}
+                        >
+                        <label class="form-check-label" for="enable_speaker_identification">
+                            <strong><i class="bi bi-person-badge me-1"></i>Speaker Identification</strong>
+                            <small>AI-powered speaker name detection</small>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Alert Settings Section -->
+        <div class="form-section">
+            <h3 class="section-title">
+                <i class="bi bi-bell"></i>
+                Alert Settings
+            </h3>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="alert_email" class="form-label">
+                        <i class="bi bi-envelope-at"></i>
+                        Alert Email
+                    </label>
+                    <input 
+                        type="email" 
+                        class="form-control" 
+                        id="alert_email" 
+                        name="alert_email" 
+                        value="{{ user_to_edit.profile.alert_email }}"
+                        placeholder="alerts@company.com"
+                    >
+                    <div class="help-text">
+                        <i class="bi bi-info-circle"></i>
+                        Optional - receives conversation alerts if different from login email
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Alert Triggers
+                    </label>
+                    <div class="form-check">
+                        <input 
+                            class="form-check-input" 
+                            type="checkbox" 
+                            id="alert_on_heated_conversation" 
+                            name="alert_on_heated_conversation"
+                            {% if user_to_edit.profile.alert_on_heated_conversation %}checked{% endif %}
+                        >
+                        <label class="form-check-label" for="alert_on_heated_conversation">
+                            <strong><i class="bi bi-thermometer-high me-1"></i>Heated Conversations</strong>
+                            <small>Alert when conversation becomes heated or negative</small>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Form Actions -->
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-circle me-2"></i>
+                Update User
+            </button>
+            <a href="{% url 'user_management' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-x-circle me-2"></i>
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}
