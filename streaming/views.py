@@ -9,7 +9,7 @@ from django.db.models import Q, Count
 from django.utils import timezone
 import json
 
-from .models import Conversation, TranscriptSegment, Speaker, ConversationAnalysis, UserProfile, AuthToken
+from .models import Conversation, TranscriptSegment, Speaker, ConversationAnalysis, UserProfile, AuthToken, AnalysisPrompt
 from .auth_views import get_user_from_token
 
 
@@ -285,6 +285,153 @@ def user_settings(request):
     return render(request, 'streaming/user_settings.html', context)
 
 
+# MARK: - Prompt Management (Admin Only)
+
+@staff_member_required
+def prompt_management(request):
+    """Admin view to manage analysis prompts"""
+    prompts = AnalysisPrompt.objects.all().order_by('-created_at')
+
+    context = {
+        'prompts': prompts,
+    }
+
+    return render(request, 'streaming/prompt_management.html', context)
+
+
+@staff_member_required
+def prompt_create(request):
+    """Create a new analysis prompt with AI optimization"""
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        description = request.POST.get('description', '').strip()
+        plain_text = request.POST.get('plain_text', '').strip()
+
+        if not name or not plain_text:
+            messages.error(request, 'Name and plain text are required')
+            return redirect('prompt_create')
+
+        # Store temporarily for optimization
+        request.session['prompt_data'] = {
+            'name': name,
+            'description': description,
+            'plain_text': plain_text
+        }
+
+        return redirect('prompt_optimize')
+
+    return render(request, 'streaming/prompt_create.html')
+
+
+@staff_member_required
+def prompt_optimize(request):
+    """Use AI to optimize the plain text prompt"""
+    prompt_data = request.session.get('prompt_data')
+
+    if not prompt_data:
+        messages.error(request, 'No prompt data found')
+        return redirect('prompt_create')
+
+    if request.method == 'POST':
+        # User accepted the optimized prompt (or edited it)
+        optimized_prompt = request.POST.get('optimized_prompt', '').strip()
+
+        if not optimized_prompt:
+            messages.error(request, 'Optimized prompt cannot be empty')
+            return render(request, 'streaming/prompt_optimize.html', {'prompt_data': prompt_data})
+
+        # Create the prompt
+        prompt = AnalysisPrompt.objects.create(
+            name=prompt_data['name'],
+            description=prompt_data['description'],
+            plain_text=prompt_data['plain_text'],
+            optimized_prompt=optimized_prompt,
+            created_by=request.user
+        )
+
+        # Clear session data
+        del request.session['prompt_data']
+
+        messages.success(request, f'Prompt "{prompt.name}" created successfully')
+        return redirect('prompt_management')
+
+    # Generate optimized prompt using AI
+    from .ai_utils import optimize_prompt
+    optimized = optimize_prompt(prompt_data['plain_text'])
+
+    context = {
+        'prompt_data': prompt_data,
+        'optimized_prompt': optimized
+    }
+
+    return render(request, 'streaming/prompt_optimize.html', context)
+
+
+@staff_member_required
+def prompt_edit(request, prompt_id):
+    """Edit an existing prompt"""
+    prompt = get_object_or_404(AnalysisPrompt, id=prompt_id)
+
+    if request.method == 'POST':
+        prompt.name = request.POST.get('name', '').strip()
+        prompt.description = request.POST.get('description', '').strip()
+        prompt.plain_text = request.POST.get('plain_text', '').strip()
+        prompt.optimized_prompt = request.POST.get('optimized_prompt', '').strip()
+        prompt.is_active = request.POST.get('is_active') == 'on'
+
+        prompt.save()
+
+        messages.success(request, f'Prompt "{prompt.name}" updated successfully')
+        return redirect('prompt_management')
+
+    context = {
+        'prompt': prompt,
+    }
+
+    return render(request, 'streaming/prompt_edit.html', context)
+
+
+@staff_member_required
+def prompt_delete(request, prompt_id):
+    """Delete a prompt"""
+    prompt = get_object_or_404(AnalysisPrompt, id=prompt_id)
+
+    if request.method == 'POST':
+        name = prompt.name
+        prompt.delete()
+        messages.success(request, f'Prompt "{name}" deleted successfully')
+        return redirect('prompt_management')
+
+    context = {
+        'prompt': prompt,
+    }
+
+    return render(request, 'streaming/prompt_delete.html', context)
+
+
+@staff_member_required
+def prompt_assign(request, prompt_id):
+    """Assign a prompt to users"""
+    prompt = get_object_or_404(AnalysisPrompt, id=prompt_id)
+
+    if request.method == 'POST':
+        user_ids = request.POST.getlist('users')
+
+        # Update user profiles
+        UserProfile.objects.filter(user_id__in=user_ids).update(assigned_prompt=prompt)
+
+        messages.success(request, f'Prompt "{prompt.name}" assigned to {len(user_ids)} user(s)')
+        return redirect('prompt_management')
+
+    # Get all users with their current prompt assignment
+    users = User.objects.all().select_related('profile').order_by('username')
+
+    context = {
+        'prompt': prompt,
+        'users': users,
+    }
+
+    return render(request, 'streaming/prompt_assign.html', context)
 # MARK: - iOS API Endpoints
 
 @csrf_exempt
@@ -455,3 +602,19 @@ def api_upload_hq_audio(request, conversation_id):
         'conversation_id': conversation_id,
         'audio_quality': 'high_quality'
     })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

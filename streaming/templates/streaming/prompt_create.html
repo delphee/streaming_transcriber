@@ -1,0 +1,55 @@
+{% extends 'streaming/base.html' %}
+{% block title %}Create Prompt - Conversation Intelligence Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Create New Analysis Prompt</h2>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="mb-3">
+                    <label for="name" class="form-label">Prompt Name *</label>
+                    <input type="text" class="form-control" id="name" name="name" required 
+                           placeholder="e.g., Sales Call Quality Check">
+                    <small class="form-text text-muted">Give this prompt a descriptive name</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description (optional)</label>
+                    <input type="text" class="form-control" id="description" name="description"
+                           placeholder="e.g., Analyzes sales calls for quality and compliance">
+                    <small class="form-text text-muted">What is this prompt used for?</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="plain_text" class="form-label">What do you want to analyze? *</label>
+                    <textarea class="form-control" id="plain_text" name="plain_text" rows="6" required
+                              placeholder="Write in plain English what you want the AI to analyze. Example: 'I want to know if the sales rep mentioned our warranty and if the customer seemed interested in it'"></textarea>
+                    <small class="form-text text-muted">
+                        Write in plain English - AI will optimize it into a professional prompt
+                    </small>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'prompt_management' %}" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-magic me-1"></i>Optimize with AI
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

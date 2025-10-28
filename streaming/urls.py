@@ -28,6 +28,14 @@ urlpatterns = [
     path('profile/', views.user_profile, name='user_profile'),
     path('settings/', views.user_settings, name='user_settings'),
 
+    # Prompt Management (Admin only)
+    path('prompts/', views.prompt_management, name='prompt_management'),
+    path('prompts/create/', views.prompt_create, name='prompt_create'),
+    path('prompts/optimize/', views.prompt_optimize, name='prompt_optimize'),
+    path('prompts/<int:prompt_id>/edit/', views.prompt_edit, name='prompt_edit'),
+    path('prompts/<int:prompt_id>/delete/', views.prompt_delete, name='prompt_delete'),
+    path('prompts/<int:prompt_id>/assign/', views.prompt_assign, name='prompt_assign'),
+
     # API Endpoints for iOS
     path('api/conversations/', views.api_conversation_list, name='api_conversation_list'),
     path('api/conversations/<str:conversation_id>/', views.api_conversation_detail, name='api_conversation_detail'),

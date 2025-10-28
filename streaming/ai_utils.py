@@ -261,3 +261,47 @@ def should_run_speaker_analysis_v2(conversation):
         return True
 
     return False
+
+
+def optimize_prompt(plain_text):
+    """
+    Use GPT-4 to convert plain English instructions into a professional,
+    optimized prompt for conversation analysis.
+    """
+    system_prompt = """You are an expert prompt engineer. Your job is to take plain English instructions 
+and convert them into clear, professional, structured prompts for analyzing conversation transcripts.
+
+Guidelines:
+- Make the prompt clear and actionable
+- Use numbered lists for multiple analysis points
+- Ask for specific evidence/quotes from the conversation
+- Include any rating scales or categorizations requested
+- Keep it concise but comprehensive
+- Format for easy reading
+
+Return ONLY the optimized prompt, no explanations."""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Convert this into an optimized analysis prompt:\n\n{plain_text}"}
+            ],
+            temperature=0.7,
+            max_tokens=800
+        )
+
+        optimized = response.choices[0].message.content.strip()
+        print(f"Optimized prompt successfully: {len(optimized)} characters")
+        return optimized
+
+    except Exception as e:
+        print(f"Error optimizing prompt: {e}")
+        import traceback
+        traceback.print_exc()
+        return plain_text  # Fallback to original
+
+
+
+

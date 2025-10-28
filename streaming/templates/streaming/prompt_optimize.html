@@ -1,0 +1,47 @@
+{% extends 'streaming/base.html' %}
+{% block title %}Optimize Prompt - Conversation Intelligence Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Review AI-Optimized Prompt</h2>
+
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>
+        AI has optimized your prompt. You can edit it below before saving.
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Your Original Text</h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-0">{{ prompt_data.plain_text }}</p>
+        </div>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">AI-Optimized Prompt</h5>
+            </div>
+            <div class="card-body">
+                <textarea class="form-control" name="optimized_prompt" rows="12" required>{{ optimized_prompt }}</textarea>
+                <small class="form-text text-muted mt-2 d-block">
+                    You can edit this optimized version before saving
+                </small>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between">
+            <a href="{% url 'prompt_create' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back
+            </a>
+            <button type="submit" class="btn btn-success">
+                <i class="bi bi-check-circle me-1"></i>Save Prompt
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

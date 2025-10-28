@@ -1,0 +1,44 @@
+{% extends 'streaming/base.html' %}
+{% block title %}Delete Prompt - Conversation Intelligence Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Delete Prompt</h2>
+
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        <strong>Are you sure you want to delete this prompt?</strong>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">{{ prompt.name }}</h5>
+        </div>
+        <div class="card-body">
+            {% if prompt.description %}
+                <p><strong>Description:</strong> {{ prompt.description }}</p>
+            {% endif %}
+            <p><strong>Plain Text:</strong> {{ prompt.plain_text }}</p>
+            <p class="mb-0">
+                <strong>Currently assigned to:</strong> 
+                {{ prompt.assigned_users.count }} user(s)
+            </p>
+        </div>
+    </div>
+
+    <div class="alert alert-danger">
+        <i class="bi bi-info-circle me-2"></i>
+        This action cannot be undone. Users will no longer have this prompt assigned.
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="d-flex justify-content-between">
+            <a href="{% url 'prompt_management' %}" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-danger">
+                <i class="bi bi-trash me-1"></i>Delete Prompt
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

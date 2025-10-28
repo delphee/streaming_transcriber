@@ -1,0 +1,53 @@
+{% extends 'streaming/base.html' %}
+{% block title %}Edit Prompt - Conversation Intelligence Platform{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Edit Prompt: {{ prompt.name }}</h2>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="mb-3">
+                    <label for="name" class="form-label">Prompt Name *</label>
+                    <input type="text" class="form-control" id="name" name="name" required 
+                           value="{{ prompt.name }}">
+                </div>
+
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <input type="text" class="form-control" id="description" name="description"
+                           value="{{ prompt.description }}">
+                </div>
+
+                <div class="mb-3">
+                    <label for="plain_text" class="form-label">Plain Text *</label>
+                    <textarea class="form-control" id="plain_text" name="plain_text" rows="4" required>{{ prompt.plain_text }}</textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label for="optimized_prompt" class="form-label">Optimized Prompt *</label>
+                    <textarea class="form-control" id="optimized_prompt" name="optimized_prompt" rows="10" required>{{ prompt.optimized_prompt }}</textarea>
+                </div>
+
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="is_active" name="is_active" 
+                           {% if prompt.is_active %}checked{% endif %}>
+                    <label class="form-check-label" for="is_active">
+                        Active (available for assignment)
+                    </label>
+                </div>
+
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'prompt_management' %}" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save me-1"></i>Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

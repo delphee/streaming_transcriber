@@ -246,6 +246,13 @@
                         </a>
                     </li>
                     {% endif %}
+                    {% if user.is_staff %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'prompt' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'prompt_management' %}">
+                            <i class="bi bi-file-text me-1"></i> Prompts
+                        </a>
+                    </li>
+                    {% endif %}
                 </ul>
 
                 <ul class="navbar-nav">
