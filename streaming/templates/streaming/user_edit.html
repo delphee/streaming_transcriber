@@ -1,5 +1,5 @@
 {% extends 'streaming/base.html' %}
-
+{% load tz %}
 {% block title %}Edit User - Conversation Intelligence Platform{% endblock %}
 
 {% block extra_css %}
@@ -198,11 +198,11 @@
 <div class="user-info-card">
     <div class="info-stat">
         <i class="bi bi-calendar3"></i>
-        <span>Joined {{ user_to_edit.date_joined|date:"M d, Y" }}</span>
+        <span>Joined {{ user_to_edit.date_joined|localtime|date:"M d, Y" }}</span>
     </div>
     <div class="info-stat">
         <i class="bi bi-clock-history"></i>
-        <span>Last login: {% if user_to_edit.last_login %}{{ user_to_edit.last_login|date:"M d, Y g:i A" }}{% else %}Never{% endif %}</span>
+        <span>Last login: {% if user_to_edit.last_login %}{{ user_to_edit.last_login|localtime|date:"M d, Y g:i A" }}{% else %}Never{% endif %}</span>
     </div>
     <div class="info-stat">
         <i class="bi bi-chat-left-text"></i>

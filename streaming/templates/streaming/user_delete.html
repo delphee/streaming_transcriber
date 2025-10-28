@@ -1,5 +1,5 @@
 {% extends 'streaming/base.html' %}
-
+{% load tz %}
 {% block title %}Delete User - Conversation Intelligence Platform{% endblock %}
 
 {% block extra_css %}
@@ -259,7 +259,7 @@
             
             <div class="detail-item">
                 <i class="bi bi-calendar3"></i>
-                <span><strong>Joined:</strong> {{ user_to_delete.date_joined|date:"M d, Y" }}</span>
+                <span><strong>Joined:</strong> {{ user_to_delete.date_joined|localtime|date:"M d, Y" }}</span>
             </div>
             
             <div class="detail-item">

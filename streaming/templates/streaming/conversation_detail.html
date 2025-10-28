@@ -1,5 +1,6 @@
 {% extends 'streaming/base.html' %}
 {% load conversation_filters %}
+{% load tz %}
 {% block title %}{{ conversation.title|default:"Conversation" }} - Conversation Intelligence Platform{% endblock %}
 
 {% block extra_css %}
@@ -252,7 +253,7 @@
         {% if conversation.title %}
             {{ conversation.title }}
         {% else %}
-            Conversation from {{ conversation.started_at|date:"M d, Y" }}
+            Conversation from {{ conversation.started_at|localtime|date:"M d, Y" }}
         {% endif %}
         
         {% if conversation.is_active %}
@@ -260,12 +261,22 @@
                 <i class="bi bi-broadcast"></i> Live
             </span>
         {% endif %}
+        
+        {% if conversation.audio_quality == 'high_quality' %}
+            <span class="badge bg-success ms-2" title="High-quality 44.1kHz transcription">
+                <i class="bi bi-stars"></i> HQ Audio
+            </span>
+        {% elif conversation.audio_quality == 'streaming_only' and not conversation.is_active %}
+            <span class="badge bg-secondary ms-2" title="16kHz streaming quality">
+                <i class="bi bi-wifi"></i> Streaming Quality
+            </span>
+        {% endif %}
     </h1>
     
     <div class="header-meta">
         <div class="header-meta-item">
             <i class="bi bi-calendar3"></i>
-            <span>{{ conversation.started_at|date:"M d, Y g:i A" }}</span>
+            <span>{{ conversation.started_at|localtime|date:"M d, Y g:i A" }}</span>
         </div>
         
         <div class="header-meta-item">
@@ -411,7 +422,7 @@
                     {% if group.segments.0.created_at %}
                     <span>
                         <i class="bi bi-calendar3"></i>
-                        {{ group.segments.0.created_at|date:"g:i A" }}
+                        {{ group.segments.0.created_at|localtime|date:"g:i A" }}
                     </span>
                     {% endif %}
                 </div>
@@ -458,7 +469,7 @@
         <div class="mt-3 text-muted">
             <small>
                 <i class="bi bi-clock me-1"></i>
-                Generated {{ analysis.created_at|date:"M d, Y g:i A" }}
+                Generated {{ analysis.created_at|localtime|date:"M d, Y g:i A" }}
             </small>
         </div>
     </div>

@@ -44,10 +44,16 @@ def get_s3_client():
     )
 
 
-def upload_audio_to_s3(conversation_id, audio_data, username):
+def upload_audio_to_s3(conversation_id, audio_data, username, filename='audio.wav'):
     """
     Upload audio data to S3 with user-based folder structure
     Returns the S3 URL
+
+    Args:
+        conversation_id: Conversation UUID
+        audio_data: Audio bytes to upload
+        username: Username for folder structure
+        filename: Filename (e.g., 'streaming_16k.wav', 'final_44k.wav')
     """
     try:
         s3_client = get_s3_client()
@@ -56,10 +62,10 @@ def upload_audio_to_s3(conversation_id, audio_data, username):
         safe_username = sanitize_username_for_s3(username)
 
         # Create S3 key with username folder for easier troubleshooting
-        # Format: users/{username}/conversations/{conversation_id}/audio.wav
-        s3_key = f"users/{safe_username}/conversations/{conversation_id}/audio.wav"
+        # Format: users/{username}/conversations/{conversation_id}/{filename}
+        s3_key = f"users/{safe_username}/conversations/{conversation_id}/{filename}"
 
-        print(f"📁 S3 path: {s3_key}")
+        print(f"ðŸ“ S3 path: {s3_key}")
 
         # Upload to S3 (private by default, no ACL needed)
         s3_client.put_object(
@@ -72,11 +78,11 @@ def upload_audio_to_s3(conversation_id, audio_data, username):
         # Generate the S3 URL (store the permanent path)
         s3_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{s3_key}"
 
-        print(f"✅ Uploaded audio to S3: {s3_url}")
+        print(f"âœ… Uploaded audio to S3: {s3_url}")
         return s3_url
 
     except ClientError as e:
-        print(f"❌ Error uploading to S3: {e}")
+        print(f"âŒ Error uploading to S3: {e}")
         return None
 
 
@@ -101,11 +107,11 @@ def generate_presigned_url(s3_url, expiration=3600):
             ExpiresIn=expiration
         )
 
-        print(f"🔗 Generated pre-signed URL (expires in {expiration}s)")
+        print(f"ðŸ”— Generated pre-signed URL (expires in {expiration}s)")
         return presigned_url
 
     except ClientError as e:
-        print(f"❌ Error generating pre-signed URL: {e}")
+        print(f"âŒ Error generating pre-signed URL: {e}")
         return None
 
 
@@ -128,11 +134,11 @@ def get_audio_from_s3(s3_url):
         )
 
         audio_data = response['Body'].read()
-        print(f"✅ Downloaded audio from S3: {len(audio_data)} bytes")
+        print(f"âœ… Downloaded audio from S3: {len(audio_data)} bytes")
         return audio_data
 
     except ClientError as e:
-        print(f"❌ Error downloading from S3: {e}")
+        print(f"âŒ Error downloading from S3: {e}")
         return None
 
 
@@ -152,11 +158,11 @@ def delete_audio_from_s3(s3_url):
             Key=key
         )
 
-        print(f"✅ Deleted audio from S3: {s3_url}")
+        print(f"âœ… Deleted audio from S3: {s3_url}")
         return True
 
     except ClientError as e:
-        print(f"❌ Error deleting from S3: {e}")
+        print(f"âŒ Error deleting from S3: {e}")
         return False
 
 
@@ -171,7 +177,7 @@ def schedule_audio_deletion(conversation):
     conversation.audio_delete_at = delete_at
     conversation.save()
 
-    print(f"📅 Audio scheduled for deletion at {delete_at}")
+    print(f"ðŸ“… Audio scheduled for deletion at {delete_at}")
 
 
 def cleanup_expired_audio():
@@ -193,5 +199,5 @@ def cleanup_expired_audio():
             conversation.save()
             deleted_count += 1
 
-    print(f"🗑️ Cleaned up {deleted_count} expired audio files")
+    print(f"ðŸ—‘ï¸ Cleaned up {deleted_count} expired audio files")
     return deleted_count

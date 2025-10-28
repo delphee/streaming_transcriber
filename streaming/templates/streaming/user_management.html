@@ -1,5 +1,5 @@
 {% extends 'streaming/base.html' %}
-
+{% load tz %}
 {% block title %}User Management - Conversation Intelligence Platform{% endblock %}
 
 {% block extra_css %}
@@ -250,7 +250,7 @@
             
             <div class="info-item">
                 <i class="bi bi-calendar3"></i>
-                <span>Joined {{ user_item.date_joined|date:"M d, Y" }}</span>
+                <span>Joined {{ user_item.date_joined|localtime|date:"M d, Y" }}</span>
             </div>
             
             <div class="info-item">
@@ -260,7 +260,7 @@
             
             <div class="info-item">
                 <i class="bi bi-clock-history"></i>
-                <span>Last login: {% if user_item.last_login %}{{ user_item.last_login|date:"M d, Y" }}{% else %}Never{% endif %}</span>
+                <span>Last login: {% if user_item.last_login %}{{ user_item.last_login|localtime|date:"M d, Y" }}{% else %}Never{% endif %}</span>
             </div>
         </div>
         

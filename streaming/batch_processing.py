@@ -20,13 +20,13 @@ def process_conversation_with_batch_api(conversation_id, is_final=False):
     """
     try:
         analysis_type = "FINAL" if is_final else "PERIODIC"
-        print(f"🔄 Starting {analysis_type} batch processing for conversation {conversation_id}")
+        print(f"ðŸ”„ Starting {analysis_type} batch processing for conversation {conversation_id}")
 
         # Get conversation
         conversation = Conversation.objects.get(id=conversation_id)
 
         if not conversation.audio_url:
-            print("❌ No audio URL available for batch processing")
+            print("âŒ No audio URL available for batch processing")
             return False
 
         # Generate pre-signed URL for AssemblyAI to access the file
@@ -34,7 +34,7 @@ def process_conversation_with_batch_api(conversation_id, is_final=False):
         presigned_url = generate_presigned_url(conversation.audio_url, expiration=7200)  # 2 hours
 
         if not presigned_url:
-            print("❌ Failed to generate pre-signed URL")
+            print("âŒ Failed to generate pre-signed URL")
             return False
 
         # Configure AssemblyAI
@@ -43,7 +43,7 @@ def process_conversation_with_batch_api(conversation_id, is_final=False):
         # Create transcriber config with speaker diarization
         # Use advanced settings for final analysis
         if is_final:
-            print(f"🎯 Using BEST speech model for final analysis")
+            print(f"ðŸŽ¯ Using BEST speech model for final analysis")
             config = aai.TranscriptionConfig(
                 speaker_labels=True,  # Enable speaker diarization
                 speakers_expected=None,  # Auto-detect number of speakers
@@ -54,31 +54,35 @@ def process_conversation_with_batch_api(conversation_id, is_final=False):
                 disfluencies=False,  # Remove "um", "uh" etc for cleaner transcript
             )
         else:
-            print(f"⚡ Using standard settings for periodic analysis")
+            print(f"âš¡ Using standard settings for periodic analysis")
             config = aai.TranscriptionConfig(
                 speaker_labels=True,  # Enable speaker diarization
                 speakers_expected=None,  # Auto-detect number of speakers
                 # Use default/faster model for periodic checks
             )
 
-        print(f"🔤 Submitting audio to AssemblyAI batch API (using pre-signed URL)")
+        print(f"ðŸ”¤ Submitting audio to AssemblyAI batch API (using pre-signed URL)")
 
         # Create transcriber and submit with pre-signed URL
         transcriber = aai.Transcriber(config=config)
         transcript = transcriber.transcribe(presigned_url)
 
         # Wait for completion (AssemblyAI SDK handles polling)
-        print(f"⏳ Waiting for batch transcription to complete...")
+        print(f"â³ Waiting for batch transcription to complete...")
 
         if transcript.status == aai.TranscriptStatus.error:
-            print(f"❌ Batch transcription failed: {transcript.error}")
+            print(f"âŒ Batch transcription failed: {transcript.error}")
             return False
 
-        print(f"✅ Batch transcription complete!")
-        print(f"📊 Detected {len(set([u.speaker for u in transcript.utterances]))} speakers")
+        print(f"âœ… Batch transcription complete!")
+        print(f"ðŸ“Š Detected {len(set([u.speaker for u in transcript.utterances]))} speakers")
 
         # Process the results and update database
-        update_segments_with_speakers(conversation, transcript)
+        # If we have HQ audio, create new segments; otherwise update existing segments
+        if conversation.audio_quality == 'high_quality':
+            create_hq_segments(conversation, transcript)
+        else:
+            update_segments_with_speakers(conversation, transcript)
 
         # Run GPT-4o speaker identification
         identify_and_update_speakers(conversation)
@@ -86,17 +90,78 @@ def process_conversation_with_batch_api(conversation_id, is_final=False):
         # Mark analysis as completed
         mark_batch_analysis_completed(conversation, is_final)
 
-        print(f"✅ {analysis_type} batch processing complete for conversation {conversation_id}")
+        print(f"âœ… {analysis_type} batch processing complete for conversation {conversation_id}")
         return True
 
     except Conversation.DoesNotExist:
-        print(f"❌ Conversation {conversation_id} not found")
+        print(f"âŒ Conversation {conversation_id} not found")
         return False
     except Exception as e:
-        print(f"❌ Error in batch processing: {e}")
+        print(f"âŒ Error in batch processing: {e}")
         import traceback
         traceback.print_exc()
         return False
+
+
+def create_hq_segments(conversation, transcript):
+    """
+    Create NEW TranscriptSegment records from high-quality transcription.
+    These segments will have source='high_quality' and contain better transcription.
+    The old streaming segments (source='streaming') are preserved for future tone analysis.
+    """
+    print(f"ðŸ Creatin")
+
+    # Create a mapping of speaker labels from batch API
+    speaker_map = {}
+
+    for utterance in transcript.utterances:
+        speaker_label = utterance.speaker
+
+    # Get or create Speaker record
+    if speaker_label not in speaker_map:
+        speaker, created = Speaker.objects.get_or_create(
+            conversation=conversation,
+            speaker_label=speaker_label,
+            defaults={
+                'identified_name': '',
+                'is_recording_user': False,
+            }
+        )
+    speaker_map[speaker_label] = speaker
+
+    if created:
+        print(f"ðŸ'¤ Created speaker: {speaker_label}")
+
+    # Create new high-quality segments from utterances
+    segments_created = 0
+    for utterance in transcript.utterances:
+        speaker = speaker_map.get(utterance.speaker)
+
+    # Calculate average confidence from words if available
+    confidence = None
+    if hasattr(utterance, 'words') and utterance.words:
+        confidences = [w.confidence for w in utterance.words if hasattr(w, 'confidence') and w.confidence]
+    if confidences:
+        confidence = sum(confidences) / len(confidences)
+
+    # Create new segment with source='high_quality'
+    TranscriptSegment.objects.create(
+        conversation=conversation,
+        speaker=speaker,
+        text=utterance.text,
+        is_final=True,
+        start_time=utterance.start,
+        end_time=utterance.end,
+        confidence=confidence,
+        source='high_quality',  # Mark as HQ transcription
+    )
+    segments_created += 1
+
+    print(f"âœ… Created {segments_created} high-quality segments")
+
+    # Mark conversation as analyzed
+    conversation.is_analyzed = True
+    conversation.save()
 
 
 def update_segments_with_speakers(conversation, transcript):
@@ -104,7 +169,7 @@ def update_segments_with_speakers(conversation, transcript):
     Update TranscriptSegment records with speaker information from batch API.
     Maps utterances from batch API to existing segments by timestamp matching.
     """
-    print(f"🔄 Updating segments with speaker information...")
+    print(f"ðŸ”„ Updating segments with speaker information...")
 
     # Create a mapping of speaker labels from batch API
     speaker_map = {}
@@ -125,7 +190,7 @@ def update_segments_with_speakers(conversation, transcript):
             speaker_map[speaker_label] = speaker
 
             if created:
-                print(f"👤 Created speaker: {speaker_label}")
+                print(f"ðŸ‘¤ Created speaker: {speaker_label}")
 
     # Update existing segments with speaker assignments
     segments = TranscriptSegment.objects.filter(conversation=conversation).order_by('start_time')
@@ -148,10 +213,10 @@ def update_segments_with_speakers(conversation, transcript):
                 if speaker and segment.speaker != speaker:
                     segment.speaker = speaker
                     segment.save()
-                    print(f"✅ Assigned {utterance.speaker} to segment: {segment.text[:30]}...")
+                    print(f"âœ… Assigned {utterance.speaker} to segment: {segment.text[:30]}...")
                 break
 
-    print(f"✅ Updated {segments.count()} segments with speaker information")
+    print(f"âœ… Updated {segments.count()} segments with speaker information")
 
 
 def identify_and_update_speakers(conversation):
@@ -159,27 +224,27 @@ def identify_and_update_speakers(conversation):
     Use GPT-4o to identify speaker names and update Speaker records.
     This preserves names already identified in previous analyses.
     """
-    print(f"🔍 Identifying speaker names with GPT-4o...")
+    print(f"ðŸ” Identifying speaker names with GPT-4o...")
 
     # Get current speaker mapping (preserve already identified names)
     current_speakers = {}
     for speaker in conversation.speakers.all():
         if speaker.identified_name:
             current_speakers[speaker.speaker_label] = speaker.identified_name
-            print(f"📋 Preserving existing name: {speaker.speaker_label} = {speaker.identified_name}")
+            print(f"ðŸ“‹ Preserving existing name: {speaker.speaker_label} = {speaker.identified_name}")
 
     # Run GPT-4o identification
     speaker_mapping = identify_speakers_from_transcript(conversation)
 
     if not speaker_mapping:
-        print("⚠️ No speaker mapping generated by GPT-4o")
+        print("âš ï¸ No speaker mapping generated by GPT-4o")
         return False
 
     # Merge with existing names (prefer existing names over new ones)
     for label, name in current_speakers.items():
         if label in speaker_mapping and speaker_mapping[label] == "Unknown":
             speaker_mapping[label] = name
-            print(f"♻️ Keeping existing name for {label}: {name}")
+            print(f"â™»ï¸ Keeping existing name for {label}: {name}")
 
     # Update speaker records
     update_speaker_names(conversation, speaker_mapping)
@@ -215,9 +280,9 @@ def mark_batch_analysis_completed(conversation, is_final=False):
     if is_final:
         notes_data['final_analysis_completed'] = True
         notes_data['final_analysis_time'] = elapsed_seconds
-        print(f"🏁 Marked FINAL analysis at {elapsed_seconds:.0f}s")
+        print(f"ðŸ Marked FINAL analysis at {elapsed_seconds:.0f}s")
     else:
-        print(f"📝 Marked periodic analysis at {elapsed_seconds:.0f}s")
+        print(f"ðŸ“ Marked periodic analysis at {elapsed_seconds:.0f}s")
 
     conversation.notes = json.dumps(notes_data)
     conversation.save()

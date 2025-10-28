@@ -11,9 +11,21 @@ class Conversation(models.Model):
     ended_at = models.DateTimeField(null=True, blank=True)
     duration_seconds = models.IntegerField(default=0)
 
-    audio_url = models.URLField(blank=True)  # S3 URL for the complete audio
+    # Audio storage - dual quality system
+    streaming_audio_url = models.URLField(blank=True)  # 16kHz from WebSocket streaming
+    audio_url = models.URLField(blank=True)  # 44.1kHz high-quality (main audio)
     audio_uploaded_at = models.DateTimeField(null=True, blank=True)
     audio_delete_at = models.DateTimeField(null=True, blank=True)  # When to delete from S3
+
+    # Audio quality tracking
+    audio_quality = models.CharField(
+        max_length=20,
+        choices=[
+            ('streaming_only', 'Streaming Only (16kHz)'),
+            ('high_quality', 'High Quality (44.1kHz)'),
+        ],
+        default='streaming_only'
+    )
 
     # Status
     is_active = models.BooleanField(default=True)  # Currently streaming
@@ -72,6 +84,16 @@ class TranscriptSegment(models.Model):
     # AssemblyAI metadata
     turn_order = models.IntegerField(null=True, blank=True)
     confidence = models.FloatField(null=True, blank=True)
+
+    # Source of transcription
+    source = models.CharField(
+        max_length=20,
+        choices=[
+            ('streaming', 'Streaming Transcription'),
+            ('high_quality', 'High Quality Transcription'),
+        ],
+        default='streaming'
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 

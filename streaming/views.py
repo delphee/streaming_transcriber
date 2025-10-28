@@ -93,7 +93,14 @@ def conversation_detail(request, conversation_id):
         return redirect('conversation_list')
 
     # Get transcript segments
-    segments = conversation.segments.filter(is_final=True).select_related('speaker').order_by('created_at')
+    # Prefer high-quality segments if available, otherwise show streaming segments
+    hq_segments = conversation.segments.filter(is_final=True, source='high_quality').select_related('speaker').order_by(
+        'start_time')
+    if hq_segments.exists():
+        segments = hq_segments
+    else:
+        segments = conversation.segments.filter(is_final=True, source='streaming').select_related('speaker').order_by(
+            'created_at')
 
     # Get speakers
     speakers = conversation.speakers.all()
@@ -334,8 +341,14 @@ def api_conversation_detail(request, conversation_id):
     except Conversation.DoesNotExist:
         return JsonResponse({'error': 'Conversation not found'}, status=404)
 
-    # Get segments
-    segments = conversation.segments.filter(is_final=True).select_related('speaker').order_by('created_at')
+    # Get segments - prefer high-quality if available
+    hq_segments = conversation.segments.filter(is_final=True, source='high_quality').select_related('speaker').order_by(
+        'start_time')
+    if hq_segments.exists():
+        segments = hq_segments
+    else:
+        segments = conversation.segments.filter(is_final=True, source='streaming').select_related('speaker').order_by(
+            'created_at')
 
     data = {
         'id': conversation.id,
@@ -356,3 +369,89 @@ def api_conversation_detail(request, conversation_id):
     }
 
     return JsonResponse(data)
+
+
+@csrf_exempt
+def api_upload_hq_audio(request, conversation_id):
+    """
+    API endpoint for iOS to upload high-quality 44.1kHz audio.
+    This triggers the final transcription and speaker diarization.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    # Get token from header
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return JsonResponse({'error': 'Invalid authorization header'}, status=401)
+
+    token = auth_header.split(' ')[1]
+    user = get_user_from_token(token)
+
+    if not user:
+        return JsonResponse({'error': 'Invalid token'}, status=401)
+
+    # Get conversation
+    try:
+        conversation = Conversation.objects.get(id=conversation_id, recorded_by=user)
+    except Conversation.DoesNotExist:
+        return JsonResponse({'error': 'Conversation not found'}, status=404)
+
+    # Check if conversation is already finalized
+    if conversation.is_active:
+        return JsonResponse({'error': 'Conversation is still active'}, status=400)
+
+    # Get audio file from request
+    if 'audio' not in request.FILES:
+        return JsonResponse({'error': 'No audio file provided'}, status=400)
+
+    audio_file = request.FILES['audio']
+
+    # Validate file type (should be WAV)
+    if not audio_file.name.endswith('.wav'):
+        return JsonResponse({'error': 'Only WAV files are supported'}, status=400)
+
+    # Read audio data
+    audio_data = audio_file.read()
+
+    print(f"📤 Received HQ audio upload for conversation {conversation_id}: {len(audio_data)} bytes")
+
+    # Upload to S3 as final_44k.wav
+    from .s3_utils import upload_audio_to_s3, schedule_audio_deletion
+    username = user.username
+    s3_url = upload_audio_to_s3(conversation_id, audio_data, username, filename='final_44k.wav')
+
+    if not s3_url:
+        return JsonResponse({'error': 'Failed to upload audio to S3'}, status=500)
+
+    # Update conversation with HQ audio URL and quality
+    conversation.audio_url = s3_url
+    conversation.audio_quality = 'high_quality'
+    conversation.save()
+
+    print(f"✅ HQ audio uploaded to S3: {s3_url}")
+
+    # Schedule deletion for HQ audio (if not already scheduled)
+    if not conversation.audio_delete_at:
+        schedule_audio_deletion(conversation)
+
+    # Trigger batch processing on high-quality audio
+    from .batch_processing import process_conversation_with_batch_api
+    import threading
+
+    batch_thread = threading.Thread(
+        target=process_conversation_with_batch_api,
+        args=(conversation_id,),
+        kwargs={'is_final': True}  # Use high-quality speech model
+    )
+    batch_thread.start()
+
+    print(f"🚀 Started batch processing with HQ audio for conversation {conversation_id}")
+
+    # Return success response
+    return JsonResponse({
+        'success': True,
+        'message': 'High-quality audio uploaded successfully',
+        'conversation_id': conversation_id,
+        'audio_quality': 'high_quality'
+    })

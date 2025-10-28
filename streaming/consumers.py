@@ -25,7 +25,7 @@ from .audio_buffer import AudioBuffer
 
 class StreamingConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        print("🔵 WebSocket connect method called")
+        print("ðŸ”µ WebSocket connect method called")
 
         # Get token from query parameters
         query_string = self.scope.get('query_string', b'').decode()
@@ -36,7 +36,7 @@ class StreamingConsumer(AsyncWebsocketConsumer):
             token = params.get('token')
 
         if not token:
-            print("❌ No authentication token provided")
+            print("âŒ No authentication token provided")
             await self.close()
             return
 
@@ -44,31 +44,31 @@ class StreamingConsumer(AsyncWebsocketConsumer):
         self.user = await sync_to_async(get_user_from_token)(token)
 
         if not self.user:
-            print("❌ Invalid authentication token")
+            print("âŒ Invalid authentication token")
             await self.close()
             return
 
-        print(f"✅ User authenticated: {self.user.username}")
+        print(f"âœ… User authenticated: {self.user.username}")
 
         try:
             await self.accept()
-            print("🔵 WebSocket accepted")
+            print("ðŸ”µ WebSocket accepted")
 
             # Create conversation record
             self.conversation = await self.create_conversation()
-            print(f"📝 Conversation created: {self.conversation.id}")
+            print(f"ðŸ“ Conversation created: {self.conversation.id}")
 
             # Initialize audio buffer
             self.audio_buffer = AudioBuffer(sample_rate=16000, channels=1)
-            print("🎵 Audio buffer initialized")
+            print("ðŸŽµ Audio buffer initialized")
 
             # Store the event loop
             self.loop = asyncio.get_event_loop()
-            print("🔵 Event loop stored")
+            print("ðŸ”µ Event loop stored")
 
             # Set API key
             aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
-            print("🔵 API key set")
+            print("ðŸ”µ API key set")
 
             # Create streaming client with new v3 API
             self.transcriber = StreamingClient(
@@ -77,14 +77,14 @@ class StreamingConsumer(AsyncWebsocketConsumer):
                     sample_rate=16000,
                 )
             )
-            print("🔵 StreamingClient created")
+            print("ðŸ”µ StreamingClient created")
 
             # Attach event handlers
             self.transcriber.on(StreamingEvents.Begin, self.on_begin)
             self.transcriber.on(StreamingEvents.Turn, self.on_turn)
             self.transcriber.on(StreamingEvents.Error, self.on_error)
             self.transcriber.on(StreamingEvents.Termination, self.on_terminated)
-            print("🔵 Event handlers attached")
+            print("ðŸ”µ Event handlers attached")
 
             # Create session parameters
             params = StreamingSessionParameters(
@@ -92,33 +92,33 @@ class StreamingConsumer(AsyncWebsocketConsumer):
                 encoding='pcm_s16le',
                 enable_extra_session_information=True,
             )
-            print("🔵 Session parameters created")
+            print("ðŸ”µ Session parameters created")
 
             # Connect to AssemblyAI with parameters
             await asyncio.to_thread(self.transcriber.connect, params)
-            print("🔵 Connected to AssemblyAI")
+            print("ðŸ”µ Connected to AssemblyAI")
 
             await self.send(text_data=json.dumps({
                 'type': 'connection',
                 'message': 'Connected to streaming service',
                 'conversation_id': str(self.conversation.id)
             }))
-            print("🔵 Connection message sent")
+            print("ðŸ”µ Connection message sent")
 
         except Exception as e:
-            print(f"❌ Error in connect: {type(e).__name__}: {str(e)}")
+            print(f"âŒ Error in connect: {type(e).__name__}: {str(e)}")
             import traceback
             traceback.print_exc()
             await self.close()
 
     async def disconnect(self, close_code):
-        print(f"🔌 Disconnecting with code: {close_code}")
+        print(f"ðŸ”Œ Disconnecting with code: {close_code}")
 
         # Upload audio to S3 and process with batch API
         if hasattr(self, 'conversation') and hasattr(self, 'audio_buffer'):
             await self.finalize_conversation()
 
-        print("🔌 Disconnect complete")
+        print("ðŸ”Œ Disconnect complete")
 
     async def receive(self, text_data=None, bytes_data=None):
         if bytes_data:
@@ -130,7 +130,7 @@ class StreamingConsumer(AsyncWebsocketConsumer):
             await asyncio.to_thread(self.transcriber.stream, bytes_data)
 
     def on_begin(self, client, event):
-        print(f"🎯 AssemblyAI session started: {event.id}")
+        print(f"ðŸŽ¯ AssemblyAI session started: {event.id}")
         asyncio.run_coroutine_threadsafe(
             self.send(text_data=json.dumps({
                 'type': 'session_begin',
@@ -164,7 +164,7 @@ class StreamingConsumer(AsyncWebsocketConsumer):
         )
 
     def on_error(self, client, error):
-        print(f"❌ AssemblyAI error: {error}")
+        print(f"âŒ AssemblyAI error: {error}")
         asyncio.run_coroutine_threadsafe(
             self.send(text_data=json.dumps({
                 'type': 'error',
@@ -174,7 +174,7 @@ class StreamingConsumer(AsyncWebsocketConsumer):
         )
 
     def on_terminated(self, client, event):
-        print(f"🏁 AssemblyAI session terminated - Duration: {event.audio_duration_seconds}s")
+        print(f"ðŸ AssemblyAI session terminated - Duration: {event.audio_duration_seconds}s")
         asyncio.run_coroutine_threadsafe(
             self.send(text_data=json.dumps({
                 'type': 'terminated',
@@ -201,7 +201,7 @@ class StreamingConsumer(AsyncWebsocketConsumer):
     @sync_to_async
     def finalize_conversation(self):
         """Upload audio to S3 and trigger FINAL high-quality batch processing"""
-        print(f"🎬 Finalizing conversation {self.conversation.id}")
+        print(f"ðŸŽ¬ Finalizing conversation {self.conversation.id}")
 
         # Mark conversation as complete
         self.conversation.is_active = False
@@ -217,43 +217,35 @@ class StreamingConsumer(AsyncWebsocketConsumer):
             self.conversation.title = f"Conversation from {self.conversation.started_at.strftime('%b %d, %Y %I:%M %p')}"
 
         self.conversation.save()
-        print(f"✅ Conversation {self.conversation.id} marked as complete")
+        print(f"âœ… Conversation {self.conversation.id} marked as complete")
 
         # Get WAV file from buffer
         wav_data = self.audio_buffer.get_wav_file()
 
         if not wav_data:
-            print("⚠️ No audio data to upload")
+            print("âš ï¸ No audio data to upload")
             return
 
-        print(f"📦 Audio buffer size: {len(wav_data)} bytes")
+        print(f"ðŸ“¦ Audio buffer size: {len(wav_data)} bytes")
 
         # Upload to S3 with username in path
         from .s3_utils import upload_audio_to_s3, schedule_audio_deletion
         username = self.conversation.recorded_by.username
-        s3_url = upload_audio_to_s3(self.conversation.id, wav_data, username)
+        s3_url = upload_audio_to_s3(self.conversation.id, wav_data, username, filename='streaming_16k.wav')
 
         if s3_url:
-            self.conversation.audio_url = s3_url
+            self.conversation.streaming_audio_url = s3_url
             self.conversation.audio_uploaded_at = timezone.now()
+            # audio_quality remains 'streaming_only' (default) until HQ audio arrives
             self.conversation.save()
 
             # Schedule deletion based on retention policy
             schedule_audio_deletion(self.conversation)
 
-            # Trigger FINAL high-quality batch processing for speaker diarization
-            from .batch_processing import process_conversation_with_batch_api
-            import threading
-
-            batch_thread = threading.Thread(
-                target=process_conversation_with_batch_api,
-                args=(self.conversation.id,),
-                kwargs={'is_final': True}  # Use high-quality speech model
-            )
-            batch_thread.start()
-            print("🚀 Started FINAL batch processing thread with best speech model")
+            print("âœ… Streaming audio uploaded. Waiting for high-quality audio upload from iOS.")
+            # Note: Batch processing will be triggered when iOS uploads the 44.1kHz audio
         else:
-            print("❌ Failed to upload audio to S3")
+            print("âŒ Failed to upload streaming audio to S3")
 
     @sync_to_async
     def save_transcript_segment(self, event):
@@ -299,10 +291,10 @@ class StreamingConsumer(AsyncWebsocketConsumer):
                 duration_ms = end_time - start_time
                 duration = f" ({duration_ms}ms)"
 
-            print(f"💾 Saved final transcript{duration}: {event.transcript[:50]}...")
+            print(f"ðŸ’¾ Saved final transcript{duration}: {event.transcript[:50]}...")
 
         except Exception as e:
-            print(f"❌ Error saving transcript: {e}")
+            print(f"âŒ Error saving transcript: {e}")
             import traceback
             traceback.print_exc()
 
@@ -322,7 +314,7 @@ class StreamingConsumer(AsyncWebsocketConsumer):
 
         # Check timing
         if should_run_speaker_analysis_v2(self.conversation):
-            print(f"⏰ Running PERIODIC speaker analysis for conversation {self.conversation.id}")
+            print(f"â° Running PERIODIC speaker analysis for conversation {self.conversation.id}")
             from .batch_processing import process_conversation_with_batch_api
             import threading
 
