@@ -1,5 +1,5 @@
 {% extends 'streaming/base.html' %}
-
+{% load tz %}
 {% block title %}Dashboard - Conversation Intelligence Platform{% endblock %}
 
 {% block extra_css %}
@@ -286,7 +286,7 @@
                         {% if conversation.title %}
                             {{ conversation.title }}
                         {% else %}
-                            Conversation from {{ conversation.started_at|date:"M d, Y" }}
+                            Conversation from {{ conversation.started_at|localtime|date:"M d, Y" }}
                         {% endif %}
                         
                         {% if conversation.is_active %}
@@ -307,7 +307,7 @@
                     <div class="conversation-meta">
                         <span>
                             <i class="bi bi-calendar3"></i>
-                            {{ conversation.started_at|date:"M d, Y g:i A" }}
+                            {{ conversation.started_at|localtime|date:"M d, Y g:i A" }}
                         </span>
                         <span>
                             <i class="bi bi-clock"></i>

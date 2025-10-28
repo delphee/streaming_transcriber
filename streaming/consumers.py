@@ -306,6 +306,7 @@ class StreamingConsumer(AsyncWebsocketConsumer):
             import traceback
             traceback.print_exc()
 
+
     @sync_to_async
     def check_speaker_analysis(self):
         """

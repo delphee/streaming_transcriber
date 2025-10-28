@@ -194,7 +194,7 @@
                 {% if conversation.title %}
                     {{ conversation.title }}
                 {% else %}
-                    Conversation from {{ conversation.started_at|date:"M d, Y" }}
+                    Conversation from {{ conversation.started_at|localtime|date:"M d, Y" }}
                 {% endif %}
             </h3>
             
