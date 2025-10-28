@@ -8,3 +8,7 @@ whitenoise==6.11.0
 dj_database_url==3.0.1
 openai
 boto3==1.35.0
+noisereduce
+pyloudnorm
+numpy
+scipy
