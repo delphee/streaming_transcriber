@@ -109,7 +109,10 @@ def create_hq_segments(conversation, transcript):
     These segments will have source='high_quality' and contain better transcription.
     The old streaming segments (source='streaming') are preserved for future tone analysis.
     """
-    print(f"ðŸ Creatin")
+    print(f"ðŸ Creating new high-quality segments from batch transcription...")
+    print(f"Total utterances in transcript: {len(transcript.utterances)}")
+    for idx, utt in enumerate(transcript.utterances):
+        print(f"Utterance {idx}: speaker={utt.speaker}, start={utt.start}, end={utt.end}, text={utt.text[:100]}...")
 
     # Create a mapping of speaker labels from batch API
     speaker_map = {}

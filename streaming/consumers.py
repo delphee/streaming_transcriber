@@ -242,7 +242,7 @@ class StreamingConsumer(AsyncWebsocketConsumer):
             # Schedule deletion based on retention policy
             schedule_audio_deletion(self.conversation)
 
-            print("âœ… Streaming audio uploaded. Waiting for high-quality audio upload from iOS.")
+            print("Streaming audio uploaded to S3 as backup/reference.")
             # Note: Batch processing will be triggered when iOS uploads the 44.1kHz audio
         else:
             print("âŒ Failed to upload streaming audio to S3")
