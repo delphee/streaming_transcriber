@@ -126,12 +126,41 @@ class ConversationAnalysis(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Add after key_points_detected field:
+    prompt_used = models.ForeignKey('AnalysisPrompt', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='analyses')
+    shared_with_admin = models.BooleanField(default=False)  # User shared this result with admin
+
     class Meta:
         ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.analysis_type} for {self.conversation.id}"
 
+
+class AnalysisPrompt(models.Model):
+    """AI analysis prompts that can be assigned to users"""
+    name = models.CharField(max_length=200)  # "Sales Call Quality Check"
+    description = models.TextField(blank=True)  # What this prompt is for
+
+    # What the admin wrote in plain English
+    plain_text = models.TextField(help_text="What you want the AI to analyze, in plain English")
+
+    # What AI optimized it to
+    optimized_prompt = models.TextField(help_text="AI-optimized professional prompt")
+
+    # Status
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_prompts')
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name
 
 class UserProfile(models.Model):
     """Extended user profile with app-specific settings"""
@@ -152,6 +181,10 @@ class UserProfile(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Add after default_analysis_type field:
+    assigned_prompt = models.ForeignKey('AnalysisPrompt', on_delete=models.SET_NULL, null=True, blank=True,
+                                        related_name='assigned_users')
 
     def __str__(self):
         return f"Profile for {self.user.username}"

@@ -242,6 +242,8 @@ class StreamingConsumer(AsyncWebsocketConsumer):
             # Schedule deletion based on retention policy
             schedule_audio_deletion(self.conversation)
 
+            self.audio_buffer.clear()
+
             print("Streaming audio uploaded to S3 as backup/reference.")
             # Note: Batch processing will be triggered when iOS uploads the 44.1kHz audio
         else:
