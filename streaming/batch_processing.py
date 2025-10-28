@@ -109,8 +109,10 @@ def create_hq_segments(conversation, transcript):
     These segments will have source='high_quality' and contain better transcription.
     The old streaming segments (source='streaming') are preserved for future tone analysis.
     """
-    print(f"ðŸ Creating new high-quality segments from batch transcription...")
+    print("Creating new high-quality segments from batch transcription...")
     print(f"Total utterances in transcript: {len(transcript.utterances)}")
+
+    # Debug: Show all utterances
     for idx, utt in enumerate(transcript.utterances):
         print(f"Utterance {idx}: speaker={utt.speaker}, start={utt.start}, end={utt.end}, text={utt.text[:100]}...")
 
@@ -120,47 +122,56 @@ def create_hq_segments(conversation, transcript):
     for utterance in transcript.utterances:
         speaker_label = utterance.speaker
 
-    # Get or create Speaker record
-    if speaker_label not in speaker_map:
-        speaker, created = Speaker.objects.get_or_create(
-            conversation=conversation,
-            speaker_label=speaker_label,
-            defaults={
-                'identified_name': '',
-                'is_recording_user': False,
-            }
-        )
-    speaker_map[speaker_label] = speaker
+        # Get or create Speaker record
+        if speaker_label not in speaker_map:
+            speaker, created = Speaker.objects.get_or_create(
+                conversation=conversation,
+                speaker_label=speaker_label,
+                defaults={
+                    'identified_name': '',
+                    'is_recording_user': False,
+                }
+            )
+            speaker_map[speaker_label] = speaker
 
-    if created:
-        print(f"ðŸ'¤ Created speaker: {speaker_label}")
+            if created:
+                print(f"Created speaker: {speaker_label}")
+            else:
+                print(f"Using existing speaker: {speaker_label}")
+
+    print(f"Speaker map has {len(speaker_map)} speakers")
 
     # Create new high-quality segments from utterances
     segments_created = 0
     for utterance in transcript.utterances:
         speaker = speaker_map.get(utterance.speaker)
 
-    # Calculate average confidence from words if available
-    confidence = None
-    if hasattr(utterance, 'words') and utterance.words:
-        confidences = [w.confidence for w in utterance.words if hasattr(w, 'confidence') and w.confidence]
-    if confidences:
-        confidence = sum(confidences) / len(confidences)
+        if not speaker:
+            print(f"WARNING: No speaker found for {utterance.speaker}")
+            continue
 
-    # Create new segment with source='high_quality'
-    TranscriptSegment.objects.create(
-        conversation=conversation,
-        speaker=speaker,
-        text=utterance.text,
-        is_final=True,
-        start_time=utterance.start,
-        end_time=utterance.end,
-        confidence=confidence,
-        source='high_quality',  # Mark as HQ transcription
-    )
-    segments_created += 1
+        # Calculate average confidence from words if available
+        confidence = None
+        if hasattr(utterance, 'words') and utterance.words:
+            confidences = [w.confidence for w in utterance.words if hasattr(w, 'confidence') and w.confidence]
+            if confidences:
+                confidence = sum(confidences) / len(confidences)
 
-    print(f"âœ… Created {segments_created} high-quality segments")
+        # Create new segment with source='high_quality'
+        segment = TranscriptSegment.objects.create(
+            conversation=conversation,
+            speaker=speaker,
+            text=utterance.text,
+            is_final=True,
+            start_time=utterance.start,
+            end_time=utterance.end,
+            confidence=confidence,
+            source='high_quality',
+        )
+        segments_created += 1
+        print(f"Created segment {segments_created}: speaker={utterance.speaker}, text={utterance.text[:50]}...")
+
+    print(f"Created {segments_created} high-quality segments")
 
     # Mark conversation as analyzed
     conversation.is_analyzed = True
