@@ -9,8 +9,7 @@ from django.db.models import Q, Count
 from django.utils import timezone
 import json
 
-from .models import Conversation, TranscriptSegment, Speaker, ConversationAnalysis, UserProfile, AuthToken, \
-    AnalysisPrompt
+from .models import Conversation, TranscriptSegment, Speaker, ConversationAnalysis, UserProfile, AuthToken, AnalysisPrompt
 from .auth_views import get_user_from_token
 
 
@@ -475,8 +474,6 @@ def prompt_assign(request, prompt_id):
     }
 
     return render(request, 'streaming/prompt_assign.html', context)
-
-
 # MARK: - iOS API Endpoints
 
 @csrf_exempt
@@ -606,40 +603,7 @@ def api_upload_hq_audio(request, conversation_id):
     # Read audio data
     audio_data = audio_file.read()
 
-    print(f"ðŸ“¤ Received HQ audio upload for conversation {conversation_id}: {len(audio_data)} bytes")
-
-    # Apply preprocessing to HQ audio for better speaker diarization
-    print(f"🎛️ Preprocessing HQ audio (44.1kHz)...")
-    from .audio_buffer import AudioBuffer
-    import wave
-    import io
-
-    try:
-        # Parse the WAV file to extract raw PCM data
-        wav_buffer = io.BytesIO(audio_data)
-        with wave.open(wav_buffer, 'rb') as wav:
-            sample_rate = wav.getframerate()
-            channels = wav.getnchannels()
-            raw_pcm = wav.readframes(wav.getnframes())
-            print(f"📊 Original audio: {sample_rate}Hz, {channels} channel(s), {len(raw_pcm)} bytes")
-
-        # Create audio buffer with HQ sample rate
-        audio_buffer = AudioBuffer(sample_rate=sample_rate, channels=channels)
-        audio_buffer.add_chunk(raw_pcm)
-
-        # Apply preprocessing and get processed WAV
-        audio_data = audio_buffer.get_wav_file(apply_preprocessing=True)
-
-        if audio_data:
-            print(f"✅ Preprocessing complete: {len(audio_data)} bytes")
-        else:
-            print("⚠️ Preprocessing returned None, using original audio")
-            audio_data = audio_file.read()
-    except Exception as e:
-        print(f"⚠️ Preprocessing failed: {e}, using original audio")
-        import traceback
-        traceback.print_exc()
-        # Keep original audio_data if preprocessing fails
+    print(f"📤 Received HQ audio upload for conversation {conversation_id}: {len(audio_data)} bytes")
 
     # Upload to S3 as final_44k.wav
     from .s3_utils import upload_audio_to_s3, schedule_audio_deletion
@@ -654,7 +618,7 @@ def api_upload_hq_audio(request, conversation_id):
     conversation.audio_quality = 'high_quality'
     conversation.save()
 
-    print(f"âœ… HQ audio uploaded to S3: {s3_url}")
+    print(f"✅ HQ audio uploaded to S3: {s3_url}")
 
     # Schedule deletion for HQ audio (if not already scheduled)
     if not conversation.audio_delete_at:
@@ -671,7 +635,7 @@ def api_upload_hq_audio(request, conversation_id):
     )
     batch_thread.start()
 
-    print(f"ðŸš€ Started batch processing with HQ audio for conversation {conversation_id}")
+    print(f"🚀 Started batch processing with HQ audio for conversation {conversation_id}")
 
     # Return success response
     return JsonResponse({
@@ -680,3 +644,19 @@ def api_upload_hq_audio(request, conversation_id):
         'conversation_id': conversation_id,
         'audio_quality': 'high_quality'
     })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
