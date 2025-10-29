@@ -200,6 +200,11 @@ def user_edit(request, user_id):
         profile.enable_speaker_identification = request.POST.get('enable_speaker_identification') == 'on'
         profile.alert_on_heated_conversation = request.POST.get('alert_on_heated_conversation') == 'on'
         profile.alert_email = request.POST.get('alert_email', '').strip()
+        assigned_prompt_id = request.POST.get('assigned_prompt')
+        if assigned_prompt_id:
+            profile.assigned_prompt_id = assigned_prompt_id
+        else:
+            profile.assigned_prompt = None
         profile.save()
 
         messages.success(request, f'User {user_to_edit.username} updated successfully')
@@ -373,15 +378,26 @@ def prompt_edit(request, prompt_id):
     prompt = get_object_or_404(AnalysisPrompt, id=prompt_id)
 
     if request.method == 'POST':
+        old_plain_text = prompt.plain_text
+        new_plain_text = request.POST.get('plain_text', '').strip()
+
         prompt.name = request.POST.get('name', '').strip()
         prompt.description = request.POST.get('description', '').strip()
-        prompt.plain_text = request.POST.get('plain_text', '').strip()
-        prompt.optimized_prompt = request.POST.get('optimized_prompt', '').strip()
+        prompt.plain_text = new_plain_text
         prompt.is_active = request.POST.get('is_active') == 'on'
 
-        prompt.save()
+        # Check if plain text changed - if so, regenerate optimized prompt
+        if old_plain_text != new_plain_text:
+            print(f"Plain text changed - regenerating optimized prompt")
+            from .ai_utils import optimize_prompt
+            prompt.optimized_prompt = optimize_prompt(new_plain_text)
+            messages.success(request, f'Prompt "{prompt.name}" updated and re-optimized by AI')
+        else:
+            # Plain text didn't change, so use the manually edited optimized prompt
+            prompt.optimized_prompt = request.POST.get('optimized_prompt', '').strip()
+            messages.success(request, f'Prompt "{prompt.name}" updated successfully')
 
-        messages.success(request, f'Prompt "{prompt.name}" updated successfully')
+        prompt.save()
         return redirect('prompt_management')
 
     context = {

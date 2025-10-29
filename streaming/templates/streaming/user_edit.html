@@ -469,6 +469,25 @@
             </div>
         </div>
         
+        <hr class="my-4">
+                
+        <h5 class="mb-3">AI Analysis Prompt</h5>
+        
+        <div class="mb-3">
+            <label for="assigned_prompt" class="form-label">Assigned Prompt</label>
+            <select class="form-select" id="assigned_prompt" name="assigned_prompt">
+                <option value="">No prompt assigned</option>
+                {% for prompt in prompts %}
+                <option value="{{ prompt.id }}" {% if user_to_edit.profile.assigned_prompt.id == prompt.id %}selected{% endif %}>
+                    {{ prompt.name }}
+                </option>
+                {% endfor %}
+            </select>
+            <small class="form-text text-muted">
+                This prompt will be used to analyze the user's conversations
+            </small>
+        </div>
+    
         <!-- Form Actions -->
         <div class="form-actions">
             <button type="submit" class="btn btn-primary">
