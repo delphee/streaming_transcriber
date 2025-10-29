@@ -31,6 +31,12 @@
                     {% else %}
                         <span class="badge bg-secondary">Inactive</span>
                     {% endif %}
+                    {% if prompt.is_system %}
+                        <span class="badge bg-info">System</span>
+                    {% endif %}
+                    {% if prompt.is_default %}
+                        <span class="badge bg-primary">Default</span>
+                    {% endif %}
                 </div>
                 <div class="card-body">
                     {% if prompt.description %}

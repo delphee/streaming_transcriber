@@ -3,7 +3,7 @@ from django.conf import settings
 from django.utils import timezone
 import time
 
-from .models import Conversation, Speaker, TranscriptSegment, ConversationAnalysis
+from .models import Conversation, Speaker, TranscriptSegment, ConversationAnalysis, AnalysisPrompt
 from .s3_utils import get_audio_from_s3
 from .ai_utils import identify_speakers_from_transcript, update_speaker_names
 
@@ -307,22 +307,26 @@ def mark_batch_analysis_completed(conversation, is_final=False):
 
 def run_conversation_analysis(conversation):
     """
-    Check if the user has an assigned prompt and run analysis if so.
+    Check if the user has an assigned prompt and run analysis.
+    Falls back to default prompt if none assigned.
     """
     try:
         user_profile = conversation.recorded_by.profile
-
-        if not user_profile.assigned_prompt:
-            print(f"No prompt assigned to user {conversation.recorded_by.username} - skipping analysis")
-            return False
-
         prompt = user_profile.assigned_prompt
 
-        if not prompt.is_active:
-            print(f"Assigned prompt '{prompt.name}' is inactive - skipping analysis")
-            return False
+        # If no prompt assigned, use the default
+        if not prompt:
+            prompt = AnalysisPrompt.objects.filter(is_default=True, is_active=True).first()
+            if not prompt:
+                print(f"No prompt assigned and no default prompt available - skipping analysis")
+                return False
+            print(f"Using default prompt: {prompt.name}")
+        else:
+            print(f"Using assigned prompt: {prompt.name}")
 
-        print(f"Running analysis with prompt: {prompt.name}")
+        if not prompt.is_active:
+            print(f"Prompt '{prompt.name}' is inactive - skipping analysis")
+            return False
 
         # Run the analysis
         from .ai_utils import analyze_conversation_with_prompt
@@ -339,7 +343,7 @@ def run_conversation_analysis(conversation):
             prompt_template=prompt.optimized_prompt,
             analysis_result=analysis_result,
             prompt_used=prompt,
-            visible_to_user=True,  # User can see by default
+            visible_to_user=True,
             visible_to_admin=True,
         )
 
@@ -351,7 +355,6 @@ def run_conversation_analysis(conversation):
         import traceback
         traceback.print_exc()
         return False
-
 
 
 

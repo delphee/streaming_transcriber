@@ -393,6 +393,11 @@ def prompt_edit(request, prompt_id):
     """Edit an existing prompt"""
     prompt = get_object_or_404(AnalysisPrompt, id=prompt_id)
 
+    # Prevent editing system prompts
+    if prompt.is_system:
+        messages.error(request, 'System prompts cannot be edited')
+        return redirect('prompt_management')
+
     if request.method == 'POST':
         old_plain_text = prompt.plain_text
         new_plain_text = request.POST.get('plain_text', '').strip()
@@ -427,6 +432,11 @@ def prompt_edit(request, prompt_id):
 def prompt_delete(request, prompt_id):
     """Delete a prompt"""
     prompt = get_object_or_404(AnalysisPrompt, id=prompt_id)
+
+    # Prevent deleting system prompts
+    if prompt.is_system:
+        messages.error(request, 'System prompts cannot be deleted')
+        return redirect('prompt_management')
 
     if request.method == 'POST':
         name = prompt.name
