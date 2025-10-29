@@ -164,12 +164,24 @@ def user_create(request):
         )
 
         # Create profile
-        UserProfile.objects.create(user=user)
+        profile = UserProfile.objects.create(user=user)
+
+        # Assign prompt if selected
+        assigned_prompt_id = request.POST.get('assigned_prompt')
+        if assigned_prompt_id:
+            profile.assigned_prompt_id = assigned_prompt_id
+            profile.save()
 
         messages.success(request, f'User {user.username} created successfully')
         return redirect('user_management')
 
-    return render(request, 'streaming/user_create.html')
+    prompts = AnalysisPrompt.objects.filter(is_active=True).order_by('name')
+
+    context = {
+        'prompts': prompts,
+    }
+
+    return render(request, 'streaming/user_create.html', context)
 
 
 @staff_member_required
@@ -210,8 +222,12 @@ def user_edit(request, user_id):
         messages.success(request, f'User {user_to_edit.username} updated successfully')
         return redirect('user_management')
 
+        # Get all active prompts for assignment
+    prompts = AnalysisPrompt.objects.filter(is_active=True).order_by('name')
+
     context = {
         'user_to_edit': user_to_edit,
+        'prompts': prompts,
     }
 
     return render(request, 'streaming/user_edit.html', context)
