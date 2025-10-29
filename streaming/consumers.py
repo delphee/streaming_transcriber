@@ -3,6 +3,7 @@ import asyncio
 import assemblyai as aai
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.conf import settings
+from django.utils.timezone import localtime
 from django.utils import timezone
 from asgiref.sync import sync_to_async
 from datetime import timedelta
@@ -214,7 +215,8 @@ class StreamingConsumer(AsyncWebsocketConsumer):
 
         # Generate default title if none exists
         if not self.conversation.title:
-            self.conversation.title = f"Conversation from {self.conversation.started_at.strftime('%b %d, %Y %I:%M %p')}"
+            local_time = localtime(self.conversation.started_at)
+            self.conversation.title = f"Conversation from {local_time.strftime('%b %d, %Y %I:%M %p')}"
 
         self.conversation.save()
         print(f"Ã¢Å“â€¦ Conversation {self.conversation.id} marked as complete")
