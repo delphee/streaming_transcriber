@@ -216,7 +216,16 @@ class StreamingConsumer(AsyncWebsocketConsumer):
         # Generate default title if none exists
         if not self.conversation.title:
             local_time = localtime(self.conversation.started_at)
-            self.conversation.title = f"Conversation from {local_time.strftime('%b %d, %Y %I:%M %p')}"
+
+            # Format using Python's datetime properties (platform-independent)
+            month = local_time.strftime('%b')  # Jan, Feb, etc.
+            day = local_time.day  # No leading zero automatically
+            year = local_time.year
+            hour = local_time.hour % 12 or 12  # Convert 24h to 12h, make 0 -> 12
+            minute = local_time.strftime('%M')  # Minutes with leading zero
+            am_pm = local_time.strftime('%p')  # AM/PM
+
+            self.conversation.title = f"Conversation from {month} {day}, {year} {hour}:{minute} {am_pm}"
 
         self.conversation.save()
         print(f"Ã¢Å“â€¦ Conversation {self.conversation.id} marked as complete")
