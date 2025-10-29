@@ -303,5 +303,74 @@ Return ONLY the optimized prompt, no explanations."""
         return plain_text  # Fallback to original
 
 
+def analyze_conversation_with_prompt(conversation, prompt):
+    """
+    Analyze a conversation using the assigned prompt.
+    Returns the analysis result as a string.
+    """
+    print(f"Analyzing conversation {conversation.id} with prompt: {prompt.name}")
 
+    # Build the transcript text
+    segments = conversation.segments.filter(
+        is_final=True,
+        source='high_quality'
+    ).select_related('speaker').order_by('start_time')
+
+    if not segments.exists():
+        # Fallback to streaming segments if HQ not available
+        segments = conversation.segments.filter(
+            is_final=True,
+            source='streaming'
+        ).select_related('speaker').order_by('created_at')
+
+    if not segments.exists():
+        print("No segments available for analysis")
+        return None
+
+    # Format transcript
+    transcript_lines = []
+    for segment in segments:
+        speaker_name = "Unknown"
+        if segment.speaker:
+            speaker_name = segment.speaker.identified_name or segment.speaker.speaker_label
+        transcript_lines.append(f"{speaker_name}: {segment.text}")
+
+    transcript_text = "\n".join(transcript_lines)
+
+    # Create the analysis prompt
+    analysis_request = f"""Analyze the following conversation transcript using this prompt:
+
+{prompt.optimized_prompt}
+
+TRANSCRIPT:
+{transcript_text}
+
+Provide your analysis below:"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert conversation analyst. Provide detailed, actionable analysis based on the given prompt."
+                },
+                {
+                    "role": "user",
+                    "content": analysis_request
+                }
+            ],
+            temperature=0.7,
+            max_tokens=2000
+        )
+
+        analysis_result = response.choices[0].message.content.strip()
+        print(f"Analysis complete: {len(analysis_result)} characters")
+        return analysis_result
+
+    except Exception as e:
+        print(f"Error analyzing conversation: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 

@@ -3,7 +3,7 @@ from django.conf import settings
 from django.utils import timezone
 import time
 
-from .models import Conversation, Speaker, TranscriptSegment
+from .models import Conversation, Speaker, TranscriptSegment, ConversationAnalysis
 from .s3_utils import get_audio_from_s3
 from .ai_utils import identify_speakers_from_transcript, update_speaker_names
 
@@ -86,6 +86,9 @@ def process_conversation_with_batch_api(conversation_id, is_final=False):
 
         # Run GPT-4o speaker identification
         identify_and_update_speakers(conversation)
+
+        # Run conversation analysis if user has assigned prompt
+        run_conversation_analysis(conversation)
 
         # Mark analysis as completed
         mark_batch_analysis_completed(conversation, is_final)
@@ -300,3 +303,57 @@ def mark_batch_analysis_completed(conversation, is_final=False):
 
     conversation.notes = json.dumps(notes_data)
     conversation.save()
+
+
+def run_conversation_analysis(conversation):
+    """
+    Check if the user has an assigned prompt and run analysis if so.
+    """
+    try:
+        user_profile = conversation.recorded_by.profile
+
+        if not user_profile.assigned_prompt:
+            print(f"No prompt assigned to user {conversation.recorded_by.username} - skipping analysis")
+            return False
+
+        prompt = user_profile.assigned_prompt
+
+        if not prompt.is_active:
+            print(f"Assigned prompt '{prompt.name}' is inactive - skipping analysis")
+            return False
+
+        print(f"Running analysis with prompt: {prompt.name}")
+
+        # Run the analysis
+        from .ai_utils import analyze_conversation_with_prompt
+        analysis_result = analyze_conversation_with_prompt(conversation, prompt)
+
+        if not analysis_result:
+            print("Analysis failed - no result returned")
+            return False
+
+        # Store the result
+        ConversationAnalysis.objects.create(
+            conversation=conversation,
+            analysis_type=prompt.name,
+            prompt_template=prompt.optimized_prompt,
+            analysis_result=analysis_result,
+            prompt_used=prompt,
+            visible_to_user=True,  # User can see by default
+            visible_to_admin=True,
+        )
+
+        print(f"Analysis saved successfully for conversation {conversation.id}")
+        return True
+
+    except Exception as e:
+        print(f"Error in conversation analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+
+
+
+
