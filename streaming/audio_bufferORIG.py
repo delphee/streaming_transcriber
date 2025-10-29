@@ -17,9 +17,14 @@ class AudioBuffer:
         self.audio_chunks.append(audio_bytes)
         self.total_bytes += len(audio_bytes)
 
-    def get_wav_file(self):
+    def get_wav_file(self, apply_preprocessing=True):
         """
-        Combine all chunks into a WAV file in memory with preprocessing applied.
+        Combine all chunks into a WAV file in memory.
+
+        Args:
+            apply_preprocessing: If True, applies noise reduction and normalization.
+                                If False, returns raw audio without processing.
+
         Returns bytes of the WAV file
         """
         if not self.audio_chunks:
@@ -28,15 +33,18 @@ class AudioBuffer:
         # Combine all audio chunks
         combined_audio = b''.join(self.audio_chunks)
 
-        # Apply audio preprocessing to improve speaker diarization
-        try:
-            print("🎧 Applying audio preprocessing...")
-            combined_audio = self._apply_preprocessing(combined_audio)
-            print("✅ Audio preprocessing complete")
-        except Exception as e:
-            print(f"⚠️ Audio preprocessing failed, using original audio: {e}")
-            # If preprocessing fails, continue with original audio
-            pass
+        # Apply audio preprocessing if requested
+        if apply_preprocessing:
+            try:
+                print("🎧 Applying audio preprocessing...")
+                combined_audio = self._apply_preprocessing(combined_audio)
+                print("✅ Audio preprocessing complete")
+            except Exception as e:
+                print(f"⚠️ Audio preprocessing failed, using original audio: {e}")
+                # If preprocessing fails, continue with original audio
+                pass
+        else:
+            print("⏭️ Skipping audio preprocessing (raw audio)")
 
         # Create WAV file in memory
         wav_buffer = io.BytesIO()
@@ -82,11 +90,11 @@ class AudioBuffer:
         audio_float = audio_array.astype(np.float32) / 32768.0
 
         # Step 1: Noise reduction
-        print("  🔇 Applying noise reduction...")
+        print("  ðŸ”‡ Applying noise reduction...")
         audio_float = self._noise_reduction(audio_float)
 
         # Step 2: Volume normalization (broadcast standard)
-        print("  📊 Normalizing volume...")
+        print("  ðŸ“Š Normalizing volume...")
         audio_float = self._normalize_volume(audio_float)
 
         # Convert back to 16-bit integers
@@ -124,10 +132,10 @@ class AudioBuffer:
             return reduced
 
         except ImportError:
-            print("  ⚠️ noisereduce not installed, skipping noise reduction")
+            print("  âš ï¸ noisereduce not installed, skipping noise reduction")
             return audio_float
         except Exception as e:
-            print(f"  ⚠️ Noise reduction failed: {e}")
+            print(f"  âš ï¸ Noise reduction failed: {e}")
             return audio_float
 
     def _normalize_volume(self, audio_float):
@@ -158,7 +166,7 @@ class AudioBuffer:
                 loudness = meter.integrated_loudness(audio_float)
             except ValueError:
                 # Audio might be too quiet to measure
-                print("  ⚠️ Audio too quiet to measure loudness, applying basic normalization")
+                print("  âš ï¸ Audio too quiet to measure loudness, applying basic normalization")
                 return self._basic_normalization(audio_float)
 
             # Normalize to -20 LUFS (good level for speech)
@@ -171,17 +179,17 @@ class AudioBuffer:
                 # Prevent clipping - ensure values stay in valid range
                 normalized = np.clip(normalized, -1.0, 1.0)
 
-                print(f"  📈 Normalized from {loudness:.1f} to {target_loudness:.1f} LUFS")
+                print(f"  ðŸ“ˆ Normalized from {loudness:.1f} to {target_loudness:.1f} LUFS")
                 return normalized
             else:
-                print(f"  ✓ Already at good loudness level ({loudness:.1f} LUFS)")
+                print(f"  âœ“ Already at good loudness level ({loudness:.1f} LUFS)")
                 return audio_float
 
         except ImportError:
-            print("  ⚠️ pyloudnorm not installed, using basic normalization")
+            print("  âš ï¸ pyloudnorm not installed, using basic normalization")
             return self._basic_normalization(audio_float)
         except Exception as e:
-            print(f"  ⚠️ Loudness normalization failed: {e}, using basic normalization")
+            print(f"  âš ï¸ Loudness normalization failed: {e}, using basic normalization")
             return self._basic_normalization(audio_float)
 
     def _basic_normalization(self, audio_float):
@@ -214,10 +222,10 @@ class AudioBuffer:
             # Clip to valid range
             normalized = np.clip(normalized, -1.0, 1.0)
 
-            print(f"  📈 Applied peak normalization (gain: {gain:.2f}x)")
+            print(f"  ðŸ“ˆ Applied peak normalization (gain: {gain:.2f}x)")
             return normalized
         else:
-            print("  ⚠️ Audio is silent, skipping normalization")
+            print("  âš ï¸ Audio is silent, skipping normalization")
             return audio_float
 
     # ============================================================================
@@ -257,10 +265,10 @@ class AudioBuffer:
             return filtered
 
         except ImportError:
-            print("  ⚠️ scipy not installed, skipping high-pass filter")
+            print("  âš ï¸ scipy not installed, skipping high-pass filter")
             return audio_float
         except Exception as e:
-            print(f"  ⚠️ High-pass filter failed: {e}")
+            print(f"  âš ï¸ High-pass filter failed: {e}")
             return audio_float
 
     def _dynamic_range_compression(self, audio_float):

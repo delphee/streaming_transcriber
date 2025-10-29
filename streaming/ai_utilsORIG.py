@@ -12,8 +12,15 @@ def identify_speakers_from_transcript(conversation):
     Use GPT-4o to identify speaker names from the conversation transcript.
     Returns a dictionary mapping speaker labels to identified names.
     """
-    # Get all segments with speakers
-    segments = conversation.segments.filter(is_final=True).select_related('speaker').order_by('created_at')
+    # Get high-quality segments if available, otherwise use streaming segments
+    segments = conversation.segments.filter(is_final=True, source='high_quality').select_related('speaker').order_by(
+        'start_time')
+
+    if not segments.exists():
+        # Fallback to streaming segments
+        print("⚠️ No HQ segments found, using streaming segments for speaker identification")
+        segments = conversation.segments.filter(is_final=True, source='streaming').select_related('speaker').order_by(
+            'created_at')
 
     if not segments.exists():
         print("No segments found for speaker identification")
@@ -93,18 +100,19 @@ RESPOND WITH ONLY THE JSON OBJECT, NO OTHER TEXT."""
 
         speaker_mapping = json.loads(response_text)
 
-        print(f"✅ Speaker identification complete: {speaker_mapping}")
+        print(f"âœ… Speaker identification complete: {speaker_mapping}")
         return speaker_mapping
 
     except json.JSONDecodeError as e:
-        print(f"❌ Failed to parse GPT-4o response: {e}")
+        print(f"âŒ Failed to parse GPT-4o response: {e}")
         print(f"Response was: {response_text}")
         return {}
     except Exception as e:
-        print(f"❌ Error in speaker identification: {e}")
+        print(f"âŒ Error in speaker identification: {e}")
         import traceback
         traceback.print_exc()
         return {}
+
 
 # Rest of the functions remain the same...
 def update_speaker_names(conversation, speaker_mapping):
@@ -114,12 +122,12 @@ def update_speaker_names(conversation, speaker_mapping):
     """
     recording_user_name = conversation.recorded_by.get_full_name() or conversation.recorded_by.username
 
-    print(f"🔍 Updating speakers for conversation {conversation.id}")
-    print(f"📋 Speaker mapping: {speaker_mapping}")
-    print(f"👤 Recording user name: {recording_user_name}")
+    print(f"ðŸ” Updating speakers for conversation {conversation.id}")
+    print(f"ðŸ“‹ Speaker mapping: {speaker_mapping}")
+    print(f"ðŸ‘¤ Recording user name: {recording_user_name}")
 
     speakers = conversation.speakers.all()
-    print(f"🔢 Found {speakers.count()} speakers to update")
+    print(f"ðŸ”¢ Found {speakers.count()} speakers to update")
 
     for speaker in speakers:
         print(f"Processing {speaker.speaker_label}...")
@@ -135,12 +143,12 @@ def update_speaker_names(conversation, speaker_mapping):
             # Check if this is the recording user
             if recording_user_name.lower() in identified_name.lower() or identified_name.lower() in recording_user_name.lower():
                 speaker.is_recording_user = True
-                print(f"  👤 Marked {speaker.speaker_label} as recording user ({identified_name})")
+                print(f"  ðŸ‘¤ Marked {speaker.speaker_label} as recording user ({identified_name})")
 
             speaker.save()
-            print(f"  ✅ Updated {speaker.speaker_label} -> {identified_name}")
+            print(f"  âœ… Updated {speaker.speaker_label} -> {identified_name}")
         else:
-            print(f"  ⏭️ Skipping {speaker.speaker_label} (name is Unknown or empty)")
+            print(f"  â­ï¸ Skipping {speaker.speaker_label} (name is Unknown or empty)")
 
     return True
 
@@ -201,7 +209,7 @@ def mark_analysis_completed(conversation):
     conversation.notes = json.dumps(notes_data)
     conversation.save()
 
-    print(f"📝 Marked speaker analysis at {elapsed_seconds:.0f}s")
+    print(f"ðŸ“ Marked speaker analysis at {elapsed_seconds:.0f}s")
 
 
 def analyze_conversation_speakers(conversation):
@@ -209,13 +217,13 @@ def analyze_conversation_speakers(conversation):
     Main function to analyze and identify speakers in a conversation.
     Can be called multiple times during a conversation.
     """
-    print(f"🔍 Starting speaker identification for conversation {conversation.id}")
+    print(f"ðŸ” Starting speaker identification for conversation {conversation.id}")
 
     # Identify speakers using GPT-4
     speaker_mapping = identify_speakers_from_transcript(conversation)
 
     if not speaker_mapping:
-        print("⚠️ No speaker mapping generated")
+        print("âš ï¸ No speaker mapping generated")
         return False
 
     # Update speaker records
@@ -224,7 +232,7 @@ def analyze_conversation_speakers(conversation):
     if success:
         # Mark that we completed analysis
         mark_analysis_completed(conversation)
-        print(f"✅ Speaker identification complete for conversation {conversation.id}")
+        print(f"âœ… Speaker identification complete for conversation {conversation.id}")
 
     return success
 
@@ -373,4 +381,3 @@ Provide your analysis below:"""
         import traceback
         traceback.print_exc()
         return None
-

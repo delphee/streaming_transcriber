@@ -604,9 +604,9 @@ def api_upload_hq_audio(request, conversation_id):
         return JsonResponse({'error': 'Only WAV files are supported'}, status=400)
 
     # Read audio data
-    audio_data = audio_file.read()
+    original_audio_data = audio_file.read()
 
-    print(f"ðŸ“¤ Received HQ audio upload for conversation {conversation_id}: {len(audio_data)} bytes")
+    print(f"📤 Received HQ audio upload for conversation {conversation_id}: {len(original_audio_data)} bytes")
 
     # Apply preprocessing to HQ audio for better speaker diarization
     print(f"🎛️ Preprocessing HQ audio (44.1kHz)...")
@@ -614,32 +614,48 @@ def api_upload_hq_audio(request, conversation_id):
     import wave
     import io
 
+    processed_audio_data = None
     try:
         # Parse the WAV file to extract raw PCM data
-        wav_buffer = io.BytesIO(audio_data)
+        wav_buffer = io.BytesIO(original_audio_data)
         with wave.open(wav_buffer, 'rb') as wav:
             sample_rate = wav.getframerate()
             channels = wav.getnchannels()
             raw_pcm = wav.readframes(wav.getnframes())
             print(f"📊 Original audio: {sample_rate}Hz, {channels} channel(s), {len(raw_pcm)} bytes")
 
+        # Clear wav_buffer immediately after use
+        wav_buffer.close()
+        del wav_buffer
+
         # Create audio buffer with HQ sample rate
         audio_buffer = AudioBuffer(sample_rate=sample_rate, channels=channels)
         audio_buffer.add_chunk(raw_pcm)
 
-        # Apply preprocessing and get processed WAV
-        audio_data = audio_buffer.get_wav_file(apply_preprocessing=True)
+        # Clear raw_pcm immediately after adding to buffer
+        del raw_pcm
 
-        if audio_data:
-            print(f"✅ Preprocessing complete: {len(audio_data)} bytes")
+        # Apply preprocessing and get processed WAV
+        processed_audio_data = audio_buffer.get_wav_file(apply_preprocessing=True)
+
+        # Clear audio buffer immediately after getting WAV
+        del audio_buffer
+
+        if processed_audio_data:
+            print(f"✅ Preprocessing complete: {len(processed_audio_data)} bytes")
+            # Use processed audio, delete original to free memory
+            audio_data = processed_audio_data
+            del original_audio_data
         else:
             print("⚠️ Preprocessing returned None, using original audio")
-            audio_data = audio_file.read()
+            audio_data = original_audio_data
+
     except Exception as e:
         print(f"⚠️ Preprocessing failed: {e}, using original audio")
         import traceback
         traceback.print_exc()
-        # Keep original audio_data if preprocessing fails
+        # Use original audio if preprocessing fails
+        audio_data = original_audio_data
 
     # Upload to S3 as final_44k.wav
     from .s3_utils import upload_audio_to_s3, schedule_audio_deletion
@@ -655,6 +671,25 @@ def api_upload_hq_audio(request, conversation_id):
     conversation.save()
 
     print(f"âœ… HQ audio uploaded to S3: {s3_url}")
+
+    # Explicit memory cleanup - delete large objects to free memory immediately
+    # The 44.1kHz audio files and NumPy arrays from preprocessing can be quite large
+    print(f"ðŸ§¹ Cleaning up memory after audio processing...")
+    try:
+        # audio_data was used for S3 upload, safe to delete now
+        del audio_data
+
+        # Also delete processed_audio_data if it still exists
+        if 'processed_audio_data' in locals():
+            del processed_audio_data
+
+        # Force garbage collection to immediately free memory
+        import gc
+        gc.collect()
+        print(f"âœ… Memory cleanup complete")
+    except Exception as cleanup_error:
+        print(f"âš ï¸ Memory cleanup warning: {cleanup_error}")
+        # Non-critical, continue anyway
 
     # Schedule deletion for HQ audio (if not already scheduled)
     if not conversation.audio_delete_at:
