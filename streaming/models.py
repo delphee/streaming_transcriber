@@ -151,6 +151,8 @@ class AnalysisPrompt(models.Model):
 
     # Status
     is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False, help_text="Default prompt used when user has no assignment")
+    is_system = models.BooleanField(default=False, help_text="System prompt that cannot be edited or deleted")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
