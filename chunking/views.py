@@ -238,6 +238,7 @@ def upload_chunk(request):
 
 @csrf_exempt
 def request_upload_url(request, conversation_id):
+    print("request_upload_url() is running!!!!!!!!!!!")
     """
     POST /chunking/<conversation_id>/request-upload/
 
