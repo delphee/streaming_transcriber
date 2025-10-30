@@ -1,0 +1,7 @@
+from django.apps import AppConfig
+
+
+class ChunkingConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'chunking'
+    verbose_name = 'Chunked Audio System'

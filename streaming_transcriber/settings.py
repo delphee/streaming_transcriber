@@ -60,6 +60,18 @@ AWS_S3_FILE_OVERWRITE = False  # Don't overwrite files with same name
 AWS_DEFAULT_ACL = None  # Use bucket's default ACL
 AWS_S3_VERIFY = True
 
+# === CHUNKING APP CONFIGURATION ===
+
+# Preliminary transcription trigger (transcribe after every N chunks)
+PRELIMINARY_TRANSCRIPTION_BATCH_SIZE = 1  # Start with 1 for testing, increase to 2-3 for production
+
+# Audio retention policy (days)
+CHUNK_AUDIO_RETENTION_DAYS = 7  # How long to keep chunk files
+FINAL_AUDIO_RETENTION_DAYS = 7  # How long to keep final complete files
+
+# Presigned URL expiration (seconds)
+PRESIGNED_URL_EXPIRATION = 3600  # 1 hour for iOS to upload complete file
+
 # Optional: Use separate buckets for media/static if needed
 # STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
 
@@ -90,6 +102,7 @@ INSTALLED_APPS = [
     'whitenoise.runserver_nostatic',  # For serving static files on Heroku
     'django.contrib.staticfiles',
     'streaming.apps.StreamingConfig',
+    'chunking',
     'channels',
 ]
 
