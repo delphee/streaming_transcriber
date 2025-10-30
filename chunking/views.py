@@ -43,18 +43,21 @@ from .transcription import (
 
 
 def authenticate_request(request):
+    print("authenticate_request() is running!......................")
     """
     Helper to authenticate token from Authorization header.
     Returns (user, error_response) tuple.
     """
     auth_header = request.headers.get('Authorization', '')
     if not auth_header.startswith('Bearer '):
+        print("Invalid Authorization header!")
         return None, JsonResponse({'error': 'Invalid authorization header'}, status=401)
 
     token = auth_header.split(' ')[1]
     user = get_user_from_token(token)
 
     if not user:
+        print("Invalid token!")
         return None, JsonResponse({'error': 'Invalid token'}, status=401)
 
     return user, None
