@@ -265,14 +265,17 @@ def request_upload_url(request, conversation_id):
     try:
         conversation = ChunkedConversation.objects.get(id=conversation_id, recorded_by=user)
     except ChunkedConversation.DoesNotExist:
+        print("Conversation not found!")
         return JsonResponse({'error': 'Conversation not found'}, status=404)
 
     # Check if chunks are complete
     if not conversation.is_chunks_complete:
+        print("Chunks not complete yet!")
         return JsonResponse({'error': 'Chunks not complete yet'}, status=400)
 
     # Check if final file already uploaded
     if conversation.is_final_uploaded:
+        print("Final chunk upload already complete!")
         return JsonResponse({'error': 'Final file already uploaded'}, status=400)
 
     print(f"🔐 Generating presigned upload URL for conversation {conversation_id}")
