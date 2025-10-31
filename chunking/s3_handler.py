@@ -43,28 +43,30 @@ def get_s3_client():
 def upload_chunk_to_s3(conversation_id, chunk_number, chunk_data, username):
     """
     Upload a single audio chunk to S3
-    Returns the S3 URL
+    Returns tuple: (s3_url, chunks_folder_path)
     """
-    s3_client = get_s3_client()  # ← ADD THIS LINE!
+    s3_client = get_s3_client()
 
-    s3_key = f"chunks/{username}/{conversation_id}/chunk_{chunk_number}.flac"
+    safe_username = sanitize_username_for_s3(username)
+    s3_key = f"chunks/{safe_username}/{conversation_id}/chunk_{chunk_number}.flac"
+    chunks_folder = f"chunks/{safe_username}/{conversation_id}"
 
     print(f"📦 Uploading chunk {chunk_number} to S3: {s3_key}")
     print(f"Size: {len(chunk_data):,} bytes")
 
     try:
+        # Upload to S3 (private by default, no ACL needed - matches s3_utils.py pattern)
         s3_client.put_object(
             Bucket=settings.AWS_STORAGE_BUCKET_NAME,
             Key=s3_key,
             Body=chunk_data,
-            ContentType='audio/flac',
-            ACL='public-read'
+            ContentType='audio/flac'
         )
 
         s3_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{s3_key}"
 
         print(f"✅ Chunk {chunk_number} uploaded successfully")
-        return s3_url
+        return s3_url, chunks_folder
 
     except Exception as e:
         print(f"❌ S3 upload failed: {str(e)}")
