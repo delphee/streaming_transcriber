@@ -67,6 +67,7 @@ def authenticate_request(request):
 
 @csrf_exempt
 def upload_chunk(request):
+    print("upload_chunk() is running!......................")
     """
     POST /chunking/chunk/
 
