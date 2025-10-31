@@ -42,49 +42,33 @@ def get_s3_client():
 
 def upload_chunk_to_s3(conversation_id, chunk_number, chunk_data, username):
     """
-    Upload a single FLAC chunk to S3.
-
-    Args:
-        conversation_id: Conversation UUID
-        chunk_number: Sequential chunk number (1, 2, 3...)
-        chunk_data: FLAC audio bytes (preprocessed by iOS)
-        username: Username for folder structure
-
-    Returns:
-        tuple: (s3_url, chunks_folder_path) or (None, None) on error
-
-    Path structure: chunks/{username}/{conversation_id}/chunk_{number}.flac
+    Upload a single audio chunk to S3
+    Returns the S3 URL
     """
+    s3_client = get_s3_client()  # ← ADD THIS LINE!
+
+    s3_key = f"chunks/{username}/{conversation_id}/chunk_{chunk_number}.flac"
+
+    print(f"📦 Uploading chunk {chunk_number} to S3: {s3_key}")
+    print(f"Size: {len(chunk_data):,} bytes")
+
     try:
-        s3_client = get_s3_client()
-        safe_username = sanitize_username_for_s3(username)
-
-        # Create S3 path for chunks
-        chunks_folder = f"chunks/{safe_username}/{conversation_id}"
-        s3_key = f"{chunks_folder}/chunk_{chunk_number}.flac"
-
-        print(f"📦 Uploading chunk {chunk_number} to S3: {s3_key}")
-        print(f"   Size: {len(chunk_data):,} bytes")
-
-        # Upload FLAC chunk to S3
         s3_client.put_object(
             Bucket=settings.AWS_STORAGE_BUCKET_NAME,
             Key=s3_key,
             Body=chunk_data,
-            ContentType='audio/flac'
+            ContentType='audio/flac',
+            ACL='public-read'
         )
 
-        # Generate S3 URL
         s3_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{s3_key}"
 
         print(f"✅ Chunk {chunk_number} uploaded successfully")
-        return s3_url, chunks_folder
+        return s3_url
 
-    except ClientError as e:
-        print(f"❌ Error uploading chunk to S3: {e}")
-        import traceback
-        traceback.print_exc()
-        return None, None
+    except Exception as e:
+        print(f"❌ S3 upload failed: {str(e)}")
+        raise
 
 
 # === PHASE 2: COMPLETE FILE (Direct iOS Upload) ===
