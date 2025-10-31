@@ -45,6 +45,17 @@ class ChunkedConversation(models.Model):
     full_transcript = models.TextField(blank=True)  # Complete conversation transcript
     preliminary_transcript = models.TextField(blank=True)  # Stitched chunk transcripts
 
+    # === AI ANALYSIS RESULTS ===
+    summary = models.TextField(blank=True)  # Conversation summary
+    action_items = models.JSONField(default=list)  # Extracted action items
+    key_topics = models.JSONField(default=list)  # Main topics discussed
+    sentiment = models.CharField(max_length=50, blank=True)  # Overall sentiment
+    coaching_feedback = models.TextField(blank=True)  # Role-specific coaching
+
+    # Error tracking
+    transcription_error = models.TextField(blank=True)  # Track transcription errors
+    analysis_error = models.TextField(blank=True)  # Track analysis errors
+
     # === DELETION POLICY ===
     save_permanently = models.BooleanField(default=False)  # Override auto-deletion
     scheduled_deletion_date = models.DateTimeField(null=True, blank=True)

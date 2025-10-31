@@ -4,6 +4,8 @@ Transcription handler for hybrid chunked audio system.
 TWO TRANSCRIPTION MODES:
 1. PRELIMINARY: Fast transcription of chunks as they arrive (for monitoring)
 2. FINAL: High-quality transcription with speaker diarization (complete file)
+
+PLUS: AI-powered analysis (summary, action items, coaching)
 """
 
 import assemblyai as aai
@@ -196,7 +198,10 @@ def transcribe_final_audio(conversation_id):
         conversation = ChunkedConversation.objects.get(id=conversation_id)
 
         if not conversation.final_audio_url:
-            print(f"❌ No final audio URL for conversation {conversation_id}")
+            error_msg = f"No final audio URL for conversation {conversation_id}"
+            print(f"❌ {error_msg}")
+            conversation.transcription_error = error_msg
+            conversation.save()
             return False
 
         print(f"🎤 Starting FINAL transcription for conversation {conversation_id}")
@@ -206,7 +211,10 @@ def transcribe_final_audio(conversation_id):
         presigned_url = generate_presigned_download_url(conversation.final_audio_url, expiration=3600)
 
         if not presigned_url:
-            print(f"❌ Failed to generate presigned URL for final audio")
+            error_msg = "Failed to generate presigned URL for final audio"
+            print(f"❌ {error_msg}")
+            conversation.transcription_error = error_msg
+            conversation.save()
             return False
 
         print(f"   🔗 Using presigned URL for final transcription")
@@ -229,16 +237,19 @@ def transcribe_final_audio(conversation_id):
         )
 
         if transcript.status == aai.TranscriptStatus.error:
-            print(f"❌ Final transcription failed: {transcript.error}")
+            error_msg = f"Final transcription failed: {transcript.error}"
+            print(f"❌ {error_msg}")
+            conversation.transcription_error = error_msg
+            conversation.save()
             return False
 
         print(f"✅ Final transcription complete")
         print(f"   Text length: {len(transcript.text)} chars")
-        print(
-            f"   Speakers detected: {len(set([u.speaker for u in transcript.utterances])) if transcript.utterances else 0}")
+        print(f"   Speakers detected: {len(set([u.speaker for u in transcript.utterances])) if transcript.utterances else 0}")
 
         # Save full transcript text
         conversation.full_transcript = transcript.text
+        conversation.transcription_error = ""  # Clear any previous errors
         conversation.save()
 
         # Create Speaker and TranscriptSegment records
@@ -249,6 +260,10 @@ def transcribe_final_audio(conversation_id):
         if openai_client and transcript.utterances:
             identify_speakers_with_ai(conversation)
 
+        # Generate conversation analysis
+        if openai_client:
+            analyze_conversation(conversation)
+
         # Mark as analyzed
         conversation.is_analyzed = True
         conversation.save()
@@ -257,9 +272,18 @@ def transcribe_final_audio(conversation_id):
         return True
 
     except Exception as e:
-        print(f"❌ Error in final transcription: {e}")
+        error_msg = f"Error in final transcription: {str(e)}"
+        print(f"❌ {error_msg}")
         import traceback
         traceback.print_exc()
+
+        try:
+            conversation = ChunkedConversation.objects.get(id=conversation_id)
+            conversation.transcription_error = error_msg
+            conversation.save()
+        except:
+            pass
+
         return False
 
 
@@ -311,7 +335,7 @@ def create_speakers_and_segments(conversation, transcript):
 def identify_speakers_with_ai(conversation):
     """
     Use OpenAI GPT-4 to identify speakers by analyzing their dialogue.
-    Looks for mentions of names in the conversation.
+    Enhanced version with better prompting and error handling.
 
     Args:
         conversation: ChunkedConversation instance
@@ -333,12 +357,17 @@ def identify_speakers_with_ai(conversation):
     # Get recording user's name
     recording_user_name = conversation.recorded_by.get_full_name() or conversation.recorded_by.username
 
+    # Get more context from the conversation
+    all_segments = TranscriptSegment.objects.filter(
+        conversation=conversation
+    ).order_by('start_time')[:50]  # First 50 segments for full context
+
     for speaker in speakers:
         # Get this speaker's dialogue
         segments = TranscriptSegment.objects.filter(
             conversation=conversation,
             speaker=speaker
-        ).order_by('start_time')[:10]  # First 10 segments
+        ).order_by('start_time')[:15]  # More segments for better analysis
 
         if not segments.exists():
             continue
@@ -350,47 +379,59 @@ def identify_speakers_with_ai(conversation):
             conversation=conversation
         ).exclude(
             speaker=speaker
-        ).order_by('start_time')[:10]
+        ).order_by('start_time')[:15]
 
         other_dialogue = "\n".join([f"- {seg.text}" for seg in other_segments])
 
-        # Build prompt
-        prompt = f"""Analyze this conversation transcript and identify who {speaker.speaker_label} is.
+        # Build enhanced prompt
+        prompt = f"""You are an expert at analyzing conversations to identify speakers based on their dialogue and context clues.
 
-The recording was made by: {recording_user_name}
+RECORDING INFORMATION:
+- This recording was made by: {recording_user_name}
+- We need to identify who "{speaker.speaker_label}" is in this conversation
 
-{speaker.speaker_label}'s dialogue:
+{speaker.speaker_label}'S DIALOGUE:
 {speaker_dialogue}
 
-Other speaker(s) dialogue:
+OTHER SPEAKER(S)' DIALOGUE (for context):
 {other_dialogue}
 
-Based on the conversation, identify {speaker.speaker_label}'s name. Look for:
-1. Direct mentions: "Hi, I'm John" or "My name is Sarah"
-2. References by others: "Thanks, Michael" or "Susan, can you..."
-3. Context clues about roles or relationships
+IDENTIFICATION CRITERIA:
+Look for these clues to identify {speaker.speaker_label}:
 
-If {speaker.speaker_label} is the person making the recording ({recording_user_name}), say so.
+1. **Direct self-introduction**: "Hi, I'm John" or "This is Sarah calling"
+2. **Name mentioned by others**: "Thanks, Michael" or "Susan, can you help?"
+3. **Role indicators**: "As your sales rep..." or "I'm calling from..."
+4. **Context clues**: Business name mentions, relationship indicators
 
-Respond ONLY with a JSON object in this format:
+SPECIAL CASES:
+- If {speaker.speaker_label} is clearly the person making the recording (uses first-person about recording, says their own name), indicate they are the recording user
+- If you cannot confidently identify the name, respond with "Unknown"
+- Be conservative - only provide a name if you have strong evidence
+
+RESPONSE FORMAT:
+Respond with ONLY a valid JSON object (no markdown, no explanation):
 {{
     "identified_name": "First Last" or "Unknown",
     "confidence": "high" or "medium" or "low",
-    "reasoning": "Brief explanation"
-}}
-
-Do not include any other text outside the JSON."""
+    "reasoning": "Brief explanation of how you identified this person"
+}}"""
 
         try:
             response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system",
-                     "content": "You are an expert at analyzing conversations to identify speakers. Always respond with valid JSON only."},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": "You are an expert at analyzing conversations to identify speakers. Always respond with valid JSON only, no markdown formatting."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
                 ],
-                temperature=0.3,
-                max_tokens=200
+                temperature=0.2,  # Lower temperature for more consistent results
+                max_tokens=300
             )
 
             result_text = response.choices[0].message.content.strip()
@@ -413,9 +454,10 @@ Do not include any other text outside the JSON."""
             if identified_name and identified_name != "Unknown":
                 speaker.identified_name = identified_name
 
-                # Check if this is the recording user
+                # Check if this is the recording user (case-insensitive comparison)
                 if (recording_user_name.lower() in identified_name.lower() or
-                        identified_name.lower() in recording_user_name.lower()):
+                        identified_name.lower() in recording_user_name.lower() or
+                        "recording user" in reasoning.lower()):
                     speaker.is_recording_user = True
                     print(f"   👤 Marked {speaker.speaker_label} as recording user")
 
@@ -427,6 +469,116 @@ Do not include any other text outside the JSON."""
             print(f"      Response was: {result_text[:200]}")
         except Exception as e:
             print(f"   ❌ Error identifying {speaker.speaker_label}: {e}")
+            import traceback
+            traceback.print_exc()
+
+
+def analyze_conversation(conversation):
+    """
+    Perform comprehensive AI analysis of the conversation:
+    - Summary
+    - Action items
+    - Key topics
+    - Sentiment
+    - Coaching feedback
+
+    Args:
+        conversation: ChunkedConversation instance
+    """
+    if not openai_client:
+        print(f"⚠️ OpenAI client not configured, skipping conversation analysis")
+        return
+
+    print(f"🔍 Analyzing conversation with AI...")
+
+    try:
+        # Get the full transcript
+        transcript = conversation.full_transcript
+
+        if not transcript:
+            print(f"   No transcript available for analysis")
+            return
+
+        # Build comprehensive analysis prompt
+        prompt = f"""Analyze this conversation transcript and provide comprehensive insights.
+
+TRANSCRIPT:
+{transcript[:8000]}  
+
+Please analyze this conversation and provide:
+
+1. **Summary**: A concise 2-3 sentence summary of what was discussed
+2. **Action Items**: List of specific action items or next steps mentioned (if any)
+3. **Key Topics**: Main topics or themes discussed (3-5 topics)
+4. **Sentiment**: Overall sentiment/tone (positive, neutral, negative, or mixed)
+5. **Coaching Feedback**: Constructive feedback for improving communication effectiveness
+
+RESPONSE FORMAT:
+Respond with ONLY valid JSON (no markdown):
+{{
+    "summary": "2-3 sentence summary",
+    "action_items": [
+        {{"who": "Person responsible", "what": "Action description", "when": "Timeframe if mentioned"}}
+    ],
+    "key_topics": ["Topic 1", "Topic 2", "Topic 3"],
+    "sentiment": "positive|neutral|negative|mixed",
+    "coaching_feedback": "Constructive feedback focused on communication effectiveness, rapport building, clarity, and professionalism"
+}}"""
+
+        response = openai_client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert conversation analyst providing actionable insights. Always respond with valid JSON only."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.3,
+            max_tokens=1000
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # Clean up markdown if present
+        result_text = re.sub(r'```json\s*', '', result_text)
+        result_text = re.sub(r'```\s*$', '', result_text)
+        result_text = result_text.strip()
+
+        analysis = json.loads(result_text)
+
+        # Save analysis results
+        conversation.summary = analysis.get('summary', '')
+        conversation.action_items = analysis.get('action_items', [])
+        conversation.key_topics = analysis.get('key_topics', [])
+        conversation.sentiment = analysis.get('sentiment', '')
+        conversation.coaching_feedback = analysis.get('coaching_feedback', '')
+        conversation.analysis_error = ""  # Clear any previous errors
+
+        conversation.save()
+
+        print(f"✅ Conversation analysis complete")
+        print(f"   Summary: {conversation.summary[:100]}...")
+        print(f"   Action items: {len(conversation.action_items)}")
+        print(f"   Key topics: {', '.join(conversation.key_topics)}")
+        print(f"   Sentiment: {conversation.sentiment}")
+
+    except json.JSONDecodeError as e:
+        error_msg = f"Failed to parse AI analysis: {str(e)}"
+        print(f"❌ {error_msg}")
+        print(f"   Response was: {result_text[:200]}")
+        conversation.analysis_error = error_msg
+        conversation.save()
+    except Exception as e:
+        error_msg = f"Error analyzing conversation: {str(e)}"
+        print(f"❌ {error_msg}")
+        import traceback
+        traceback.print_exc()
+        conversation.analysis_error = error_msg
+        conversation.save()
 
 
 # === SEARCH FUNCTIONALITY ===

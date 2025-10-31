@@ -372,10 +372,25 @@ def finalize_conversation(request, conversation_id):
     print(f"✅ Final upload verified")
     print(f"   Starting final transcription with speaker diarization...")
 
-    # Trigger final transcription in background
+    # Trigger final transcription in background with error handling
+    def transcribe_with_error_handling():
+        try:
+            transcribe_final_audio(conversation_id)
+        except Exception as e:
+            print(f"❌ CRITICAL ERROR in final transcription thread: {e}")
+            import traceback
+            traceback.print_exc()
+            # Update conversation to mark transcription failed
+            try:
+                conv = ChunkedConversation.objects.get(id=conversation_id)
+                conv.transcription_error = str(e)
+                conv.save()
+            except:
+                pass
+
     transcription_thread = threading.Thread(
-        target=transcribe_final_audio,
-        args=(conversation_id,)
+        target=transcribe_with_error_handling,
+        daemon=True  # Daemon thread won't prevent app shutdown
     )
     transcription_thread.start()
 
@@ -508,9 +523,125 @@ def conversation_detail(request, conversation_id):
         'preliminary_transcript': conversation.preliminary_transcript,
         'full_transcript': conversation.full_transcript,
         'speakers': speakers_data,
-        'segments': segments_data
+        'segments': segments_data,
+        # Analysis results
+        'summary': conversation.summary,
+        'action_items': conversation.action_items,
+        'key_topics': conversation.key_topics,
+        'sentiment': conversation.sentiment,
+        'coaching_feedback': conversation.coaching_feedback,
+        # Errors
+        'transcription_error': conversation.transcription_error,
+        'analysis_error': conversation.analysis_error
     })
 
+@csrf_exempt
+def conversation_analysis(request, conversation_id):
+    """
+    GET /chunking/<conversation_id>/analysis/
+
+    Get AI analysis results for a conversation.
+
+    Returns: {
+        summary: str,
+        action_items: list,
+        key_topics: list,
+        sentiment: str,
+        coaching_feedback: str,
+        is_analyzed: bool,
+        transcription_error: str,
+        analysis_error: str
+    }
+    """
+    if request.method != 'GET':
+        return JsonResponse({'error': 'GET required'}, status=405)
+
+    # Authenticate
+    user, error = authenticate_request(request)
+    if error:
+        return error
+
+    # Get conversation (admins can see all)
+    try:
+        if user.is_staff:
+            conversation = ChunkedConversation.objects.get(id=conversation_id)
+        else:
+            conversation = ChunkedConversation.objects.get(id=conversation_id, recorded_by=user)
+    except ChunkedConversation.DoesNotExist:
+        return JsonResponse({'error': 'Conversation not found'}, status=404)
+
+    return JsonResponse({
+        'id': conversation.id,
+        'title': conversation.title,
+        'is_analyzed': conversation.is_analyzed,
+        'summary': conversation.summary,
+        'action_items': conversation.action_items,
+        'key_topics': conversation.key_topics,
+        'sentiment': conversation.sentiment,
+        'coaching_feedback': conversation.coaching_feedback,
+        'transcription_error': conversation.transcription_error,
+        'analysis_error': conversation.analysis_error
+    })
+
+
+@csrf_exempt
+def retry_analysis(request, conversation_id):
+    """
+    POST /chunking/<conversation_id>/retry-analysis/
+
+    Retry AI analysis if it failed or needs to be regenerated.
+    Admin or owner only.
+
+    Returns: {
+        success: bool,
+        message: str,
+        analysis_started: bool
+    }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    # Authenticate
+    user, error = authenticate_request(request)
+    if error:
+        return error
+
+    # Get conversation (admins can see all)
+    try:
+        if user.is_staff:
+            conversation = ChunkedConversation.objects.get(id=conversation_id)
+        else:
+            conversation = ChunkedConversation.objects.get(id=conversation_id, recorded_by=user)
+    except ChunkedConversation.DoesNotExist:
+        return JsonResponse({'error': 'Conversation not found'}, status=404)
+
+    # Check if there's a transcript to analyze
+    if not conversation.full_transcript:
+        return JsonResponse({'error': 'No transcript available - run transcription first'}, status=400)
+
+    print(f"🔄 Retrying analysis for conversation {conversation_id}")
+
+    # Run analysis in background
+    def analyze_with_error_handling():
+        try:
+            from .transcription import analyze_conversation
+            analyze_conversation(conversation)
+        except Exception as e:
+            print(f"❌ Error in analysis retry: {e}")
+            import traceback
+            traceback.print_exc()
+
+    analysis_thread = threading.Thread(
+        target=analyze_with_error_handling,
+        daemon=True
+    )
+    analysis_thread.start()
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Analysis retry started',
+        'analysis_started': True
+    })
 
 @csrf_exempt
 def conversation_list(request):

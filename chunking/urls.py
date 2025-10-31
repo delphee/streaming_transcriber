@@ -20,6 +20,11 @@ urlpatterns = [
     path('<str:conversation_id>/', views.conversation_detail, name='conversation_detail'),
     path('conversations/', views.conversation_list, name='conversation_list'),
 
+    # Analysis
+    path('<str:conversation_id>/analysis/', views.conversation_analysis, name='conversation_analysis'),
+    path('<str:conversation_id>/retry-analysis/', views.retry_analysis, name='retry_analysis'),
+
+
     # Management
     path('<str:conversation_id>/save/', views.save_permanently, name='save_permanently'),
     path('<str:conversation_id>/delete/', views.delete_conversation, name='delete_conversation'),
