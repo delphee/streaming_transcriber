@@ -1,155 +1,306 @@
 """
-Transcription handler for chunked audio system.
+Transcription handler for hybrid chunked audio system.
+
+TWO TRANSCRIPTION MODES:
+1. PRELIMINARY: Fast transcription of chunks as they arrive (for monitoring)
+2. FINAL: High-quality transcription with speaker diarization (complete file)
 """
+
+import assemblyai as aai
 from django.conf import settings
 from django.utils import timezone
-import assemblyai as aai
+from openai import OpenAI
+import json
+import re
+from datetime import timedelta
 from .s3_handler import generate_presigned_download_url
 
+# Initialize clients
+aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
+openai_client = OpenAI(api_key=settings.OPENAI_API_KEY if hasattr(settings, 'OPENAI_API_KEY') else None)
 
-def trigger_preliminary_transcription(conversation_id, chunk_ids):
+
+# === PRELIMINARY TRANSCRIPTION (Fast, for monitoring) ===
+
+def transcribe_chunks_preliminary(conversation_id, chunk_ids):
     """
-    Trigger preliminary transcription for batches of chunks.
+    Transcribe a batch of chunks quickly for preliminary monitoring.
+    Uses standard AssemblyAI settings (no speaker diarization).
     Uses presigned URLs for private S3 access.
+
+    Args:
+        conversation_id: ChunkedConversation ID
+        chunk_ids: List of AudioChunk IDs to transcribe
+
+    Returns:
+        bool: Success status
     """
-    from .models import AudioChunk
+    from .models import ChunkedConversation, AudioChunk
 
-    print(f"🎤 Starting preliminary transcription for {len(chunk_ids)} chunk(s)")
+    try:
+        conversation = ChunkedConversation.objects.get(id=conversation_id)
+        chunks = AudioChunk.objects.filter(
+            id__in=chunk_ids,
+            conversation=conversation
+        ).order_by('chunk_number')
 
-    aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
+        if not chunks.exists():
+            print(f"⚠️ No chunks found for preliminary transcription")
+            return False
 
-    for chunk_id in chunk_ids:
-        try:
-            chunk = AudioChunk.objects.get(id=chunk_id)
-            print(f"Transcribing chunk {chunk.chunk_number}...")
+        print(f"🎤 Starting preliminary transcription for {chunks.count()} chunk(s)")
+
+        transcriber = aai.Transcriber()
+
+        for chunk in chunks:
+            if chunk.transcript_text and chunk.transcript_source == 'preliminary':
+                print(f"   Chunk {chunk.chunk_number} already transcribed (preliminary), skipping")
+                continue
+
+            print(f"   Transcribing chunk {chunk.chunk_number}...")
 
             # Generate presigned URL for AssemblyAI (1 hour expiration)
             presigned_url = generate_presigned_download_url(chunk.s3_chunk_url, expiration=3600)
 
             if not presigned_url:
-                print(f"❌ Failed to generate presigned URL for chunk {chunk.chunk_number}")
+                print(f"   ❌ Failed to generate presigned URL for chunk {chunk.chunk_number}")
                 continue
 
-            print(f"🔗 Using presigned URL for transcription")
+            print(f"   🔗 Using presigned URL for transcription")
 
-            # Submit to AssemblyAI using presigned URL
-            transcript = aai.Transcriber().transcribe(presigned_url)
+            # Configure for speed (no speaker diarization)
+            config = aai.TranscriptionConfig(
+                speech_model=aai.SpeechModel.nano,  # Fastest model
+                punctuate=True,
+                format_text=True
+            )
+
+            # Submit chunk presigned URL for transcription
+            transcript = transcriber.transcribe(
+                presigned_url,
+                config=config
+            )
 
             if transcript.status == aai.TranscriptStatus.error:
-                print(f"❌ Transcription failed for chunk {chunk.chunk_number}: {transcript.error}")
+                print(f"   ❌ Transcription failed for chunk {chunk.chunk_number}: {transcript.error}")
                 continue
 
             # Save preliminary transcript
-            chunk.transcript_text = transcript.text or ""
+            chunk.transcript_text = transcript.text
             chunk.transcript_source = 'preliminary'
             chunk.transcribed_at = timezone.now()
             chunk.confidence_score = transcript.confidence if hasattr(transcript, 'confidence') else None
             chunk.save()
 
-            print(f"✅ Chunk {chunk.chunk_number} transcribed successfully")
-            print(f"   Transcript: {chunk.transcript_text[:100]}...")
+            print(f"   ✅ Chunk {chunk.chunk_number} transcribed: {len(transcript.text)} chars")
 
-        except Exception as e:
-            print(f"❌ Error transcribing chunk {chunk_id}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+        # Update conversation's preliminary transcript (stitched)
+        stitch_preliminary_transcript(conversation)
 
-    print(f"✅ Preliminary transcription complete")
+        # Update last preliminary transcription timestamp
+        conversation.last_preliminary_transcription = timezone.now()
+        conversation.save()
+
+        print(f"✅ Preliminary transcription complete")
+        return True
+
+    except Exception as e:
+        print(f"❌ Error in preliminary transcription: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
-def trigger_final_transcription(conversation_id):
+def stitch_preliminary_transcript(conversation):
     """
-    Trigger final transcription with speaker diarization.
+    Stitch together all preliminary chunk transcripts into a single text.
+    Adds timing markers for context.
+
+    Args:
+        conversation: ChunkedConversation instance
+    """
+    from .models import AudioChunk
+
+    chunks = AudioChunk.objects.filter(
+        conversation=conversation,
+        transcript_source='preliminary'
+    ).exclude(
+        transcript_text=''
+    ).order_by('chunk_number')
+
+    if not chunks.exists():
+        return
+
+    transcript_parts = []
+
+    for chunk in chunks:
+        # Add timing marker
+        minutes = chunk.start_time_seconds // 60
+        seconds = chunk.start_time_seconds % 60
+        timestamp = f"[{minutes}:{seconds:02d}]"
+
+        transcript_parts.append(f"{timestamp} {chunk.transcript_text}")
+
+    # Join with double newlines for readability
+    conversation.preliminary_transcript = "\n\n".join(transcript_parts)
+    conversation.save()
+
+    print(f"📝 Stitched preliminary transcript: {len(conversation.preliminary_transcript)} chars")
+
+
+def should_trigger_preliminary_transcription(conversation):
+    """
+    Determine if we should trigger preliminary transcription based on settings.
+
+    Args:
+        conversation: ChunkedConversation instance
+
+    Returns:
+        tuple: (should_transcribe: bool, chunk_ids: list)
+    """
+    from .models import AudioChunk
+
+    # Get chunks that haven't been transcribed yet
+    untranscribed_chunks = AudioChunk.objects.filter(
+        conversation=conversation,
+        transcript_text=''
+    ).order_by('chunk_number')
+
+    batch_size = getattr(settings, 'PRELIMINARY_TRANSCRIPTION_BATCH_SIZE', 3)
+
+    if untranscribed_chunks.count() >= batch_size:
+        # Transcribe the oldest batch
+        chunks_to_transcribe = list(untranscribed_chunks[:batch_size].values_list('id', flat=True))
+        return True, chunks_to_transcribe
+
+    return False, []
+
+
+# === FINAL TRANSCRIPTION (High Quality + Speaker Diarization) ===
+
+def transcribe_final_audio(conversation_id):
+    """
+    Transcribe the complete audio file with high quality and speaker diarization.
+    This is the authoritative transcription used for final analysis.
     Uses presigned URLs for private S3 access.
-    """
-    from .models import ChunkedConversation, TranscriptSegment, Speaker
 
-    print(f"🎤 Starting FINAL transcription for conversation {conversation_id}")
+    Args:
+        conversation_id: ChunkedConversation ID
+
+    Returns:
+        bool: Success status
+    """
+    from .models import ChunkedConversation, Speaker, TranscriptSegment
 
     try:
         conversation = ChunkedConversation.objects.get(id=conversation_id)
 
         if not conversation.final_audio_url:
             print(f"❌ No final audio URL for conversation {conversation_id}")
-            return
+            return False
 
-        print(f"Audio URL: {conversation.final_audio_url}")
+        print(f"🎤 Starting FINAL transcription for conversation {conversation_id}")
+        print(f"   Audio URL: {conversation.final_audio_url}")
 
         # Generate presigned URL for AssemblyAI (1 hour expiration)
         presigned_url = generate_presigned_download_url(conversation.final_audio_url, expiration=3600)
 
         if not presigned_url:
             print(f"❌ Failed to generate presigned URL for final audio")
-            return
+            return False
 
-        print(f"🔗 Using presigned URL for final transcription")
-        print(f"Submitting to AssemblyAI...")
+        print(f"   🔗 Using presigned URL for final transcription")
 
-        # Configure AssemblyAI for high-quality transcription with speaker diarization
-        aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
-
+        # Configure for maximum quality with speaker diarization
         config = aai.TranscriptionConfig(
+            speech_model=aai.SpeechModel.best,  # Best quality model
             speaker_labels=True,  # Enable speaker diarization
-            speech_model=aai.SpeechModel.best  # Use best model for quality
+            punctuate=True,
+            format_text=True,
+            speakers_expected=2  # Can be adjusted based on use case
         )
 
-        transcript = aai.Transcriber().transcribe(presigned_url, config=config)
+        transcriber = aai.Transcriber()
+
+        print(f"   Submitting to AssemblyAI...")
+        transcript = transcriber.transcribe(
+            presigned_url,
+            config=config
+        )
 
         if transcript.status == aai.TranscriptStatus.error:
             print(f"❌ Final transcription failed: {transcript.error}")
-            return
+            return False
 
-        # Save full transcript
-        conversation.full_transcript = transcript.text or ""
+        print(f"✅ Final transcription complete")
+        print(f"   Text length: {len(transcript.text)} chars")
+        print(
+            f"   Speakers detected: {len(set([u.speaker for u in transcript.utterances])) if transcript.utterances else 0}")
+
+        # Save full transcript text
+        conversation.full_transcript = transcript.text
+        conversation.save()
+
+        # Create Speaker and TranscriptSegment records
+        if transcript.utterances:
+            create_speakers_and_segments(conversation, transcript)
+
+        # Identify speakers using AI
+        if openai_client and transcript.utterances:
+            identify_speakers_with_ai(conversation)
+
+        # Mark as analyzed
         conversation.is_analyzed = True
         conversation.save()
 
-        print(f"✅ Final transcription saved")
-        print(f"   Length: {len(conversation.full_transcript)} characters")
-
-        # Process speakers and segments if available
-        if hasattr(transcript, 'utterances') and transcript.utterances:
-            process_speakers_and_segments(conversation, transcript)
-
-        print(f"✅ Final transcription complete for conversation {conversation_id}")
+        print(f"✅ Final analysis complete for conversation {conversation_id}")
+        return True
 
     except Exception as e:
-        print(f"❌ Error in final transcription: {str(e)}")
+        print(f"❌ Error in final transcription: {e}")
         import traceback
         traceback.print_exc()
+        return False
 
 
-def process_speakers_and_segments(conversation, transcript):
-    """Process speaker labels and create transcript segments"""
+def create_speakers_and_segments(conversation, transcript):
+    """
+    Create Speaker and TranscriptSegment records from AssemblyAI transcript.
+
+    Args:
+        conversation: ChunkedConversation instance
+        transcript: AssemblyAI transcript object
+    """
     from .models import Speaker, TranscriptSegment
 
-    print(f"👥 Processing speakers and segments...")
+    print(f"👥 Creating speakers and segments...")
 
-    # Create speaker records
+    # Get unique speaker labels
+    speaker_labels = set([u.speaker for u in transcript.utterances])
+
+    # Create Speaker records
     speakers_map = {}
-    for utterance in transcript.utterances:
-        speaker_label = utterance.speaker
+    for label in speaker_labels:
+        speaker, created = Speaker.objects.get_or_create(
+            conversation=conversation,
+            speaker_label=label
+        )
+        speakers_map[label] = speaker
 
-        if speaker_label not in speakers_map:
-            speaker, created = Speaker.objects.get_or_create(
-                conversation=conversation,
-                speaker_label=speaker_label
-            )
-            speakers_map[speaker_label] = speaker
-            if created:
-                print(f"   Created speaker: {speaker_label}")
+        if created:
+            print(f"   Created speaker: {label}")
 
-    # Create transcript segments
+    # Create TranscriptSegment records
     segment_count = 0
     for utterance in transcript.utterances:
-        speaker = speakers_map.get(utterance.speaker)
+        speaker = speakers_map[utterance.speaker]
 
         TranscriptSegment.objects.create(
             conversation=conversation,
             speaker=speaker,
             text=utterance.text,
-            start_time=utterance.start,
-            end_time=utterance.end,
+            start_time=utterance.start,  # milliseconds
+            end_time=utterance.end,  # milliseconds
             confidence=utterance.confidence if hasattr(utterance, 'confidence') else None
         )
         segment_count += 1
@@ -157,42 +308,214 @@ def process_speakers_and_segments(conversation, transcript):
     print(f"✅ Created {len(speakers_map)} speakers and {segment_count} segments")
 
 
+def identify_speakers_with_ai(conversation):
+    """
+    Use OpenAI GPT-4 to identify speakers by analyzing their dialogue.
+    Looks for mentions of names in the conversation.
+
+    Args:
+        conversation: ChunkedConversation instance
+    """
+    from .models import Speaker, TranscriptSegment
+
+    if not openai_client:
+        print(f"⚠️ OpenAI client not configured, skipping speaker identification")
+        return
+
+    print(f"🤖 Using AI to identify speakers...")
+
+    speakers = Speaker.objects.filter(conversation=conversation)
+
+    if not speakers.exists():
+        print(f"   No speakers to identify")
+        return
+
+    # Get recording user's name
+    recording_user_name = conversation.recorded_by.get_full_name() or conversation.recorded_by.username
+
+    for speaker in speakers:
+        # Get this speaker's dialogue
+        segments = TranscriptSegment.objects.filter(
+            conversation=conversation,
+            speaker=speaker
+        ).order_by('start_time')[:10]  # First 10 segments
+
+        if not segments.exists():
+            continue
+
+        speaker_dialogue = "\n".join([f"- {seg.text}" for seg in segments])
+
+        # Get OTHER speakers' dialogue (for context)
+        other_segments = TranscriptSegment.objects.filter(
+            conversation=conversation
+        ).exclude(
+            speaker=speaker
+        ).order_by('start_time')[:10]
+
+        other_dialogue = "\n".join([f"- {seg.text}" for seg in other_segments])
+
+        # Build prompt
+        prompt = f"""Analyze this conversation transcript and identify who {speaker.speaker_label} is.
+
+The recording was made by: {recording_user_name}
+
+{speaker.speaker_label}'s dialogue:
+{speaker_dialogue}
+
+Other speaker(s) dialogue:
+{other_dialogue}
+
+Based on the conversation, identify {speaker.speaker_label}'s name. Look for:
+1. Direct mentions: "Hi, I'm John" or "My name is Sarah"
+2. References by others: "Thanks, Michael" or "Susan, can you..."
+3. Context clues about roles or relationships
+
+If {speaker.speaker_label} is the person making the recording ({recording_user_name}), say so.
+
+Respond ONLY with a JSON object in this format:
+{{
+    "identified_name": "First Last" or "Unknown",
+    "confidence": "high" or "medium" or "low",
+    "reasoning": "Brief explanation"
+}}
+
+Do not include any other text outside the JSON."""
+
+        try:
+            response = openai_client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system",
+                     "content": "You are an expert at analyzing conversations to identify speakers. Always respond with valid JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=200
+            )
+
+            result_text = response.choices[0].message.content.strip()
+
+            # Remove markdown code blocks if present
+            result_text = re.sub(r'```json\s*', '', result_text)
+            result_text = re.sub(r'```\s*$', '', result_text)
+            result_text = result_text.strip()
+
+            result = json.loads(result_text)
+
+            identified_name = result.get('identified_name', 'Unknown')
+            confidence = result.get('confidence', 'low')
+            reasoning = result.get('reasoning', '')
+
+            print(f"   {speaker.speaker_label}: {identified_name} (confidence: {confidence})")
+            print(f"      Reasoning: {reasoning}")
+
+            # Update speaker if we have a confident identification
+            if identified_name and identified_name != "Unknown":
+                speaker.identified_name = identified_name
+
+                # Check if this is the recording user
+                if (recording_user_name.lower() in identified_name.lower() or
+                        identified_name.lower() in recording_user_name.lower()):
+                    speaker.is_recording_user = True
+                    print(f"   👤 Marked {speaker.speaker_label} as recording user")
+
+                speaker.save()
+                print(f"   ✅ Updated {speaker.speaker_label} -> {identified_name}")
+
+        except json.JSONDecodeError as e:
+            print(f"   ❌ Failed to parse AI response for {speaker.speaker_label}: {e}")
+            print(f"      Response was: {result_text[:200]}")
+        except Exception as e:
+            print(f"   ❌ Error identifying {speaker.speaker_label}: {e}")
+
+
+# === SEARCH FUNCTIONALITY ===
+
 def search_transcripts(conversation_id, query):
     """
-    Search transcript text across all chunks in a conversation.
-    Returns matches with timing information.
+    Search through chunk transcripts for a specific query.
+    Returns matches with timing and context.
+
+    Args:
+        conversation_id: ChunkedConversation ID
+        query: Search string
+
+    Returns:
+        list: [
+            {
+                'chunk_number': int,
+                'start_time_seconds': int,
+                'time_display': str,
+                'matching_text': str,
+                'context': str (surrounding text)
+            }
+        ]
     """
     from .models import AudioChunk
 
+    if not query:
+        return []
+
+    # Search in chunk transcripts (case-insensitive)
     chunks = AudioChunk.objects.filter(
         conversation_id=conversation_id,
         transcript_text__icontains=query
     ).order_by('chunk_number')
 
     results = []
+
     for chunk in chunks:
-        # Find the position in the transcript
-        text_lower = chunk.transcript_text.lower()
-        query_lower = query.lower()
-        position = text_lower.find(query_lower)
+        # Find the query position in the text
+        lower_text = chunk.transcript_text.lower()
+        lower_query = query.lower()
+        position = lower_text.find(lower_query)
 
-        if position >= 0:
-            # Get context around the match
-            context_start = max(0, position - 50)
-            context_end = min(len(chunk.transcript_text), position + len(query) + 50)
-            context = chunk.transcript_text[context_start:context_end]
+        if position == -1:
+            continue
 
-            # Calculate time position
-            minutes = chunk.start_time_seconds // 60
-            seconds = chunk.start_time_seconds % 60
-            time_display = f"{minutes}m {seconds}s"
+        # Extract context (50 chars before and after)
+        context_start = max(0, position - 50)
+        context_end = min(len(chunk.transcript_text), position + len(query) + 50)
+        context = chunk.transcript_text[context_start:context_end]
 
-            results.append({
-                'chunk_number': chunk.chunk_number,
-                'start_time_seconds': chunk.start_time_seconds,
-                'time_display': time_display,
-                'matching_text': context,
-                'full_text': chunk.transcript_text
-            })
+        # Add ellipsis if truncated
+        if context_start > 0:
+            context = "..." + context
+        if context_end < len(chunk.transcript_text):
+            context = context + "..."
+
+        # Extract just the matching portion
+        matching_text = chunk.transcript_text[position:position + len(query)]
+
+        # Format time display
+        minutes = chunk.start_time_seconds // 60
+        seconds = chunk.start_time_seconds % 60
+        time_display = f"{minutes}:{seconds:02d}"
+
+        results.append({
+            'chunk_number': chunk.chunk_number,
+            'start_time_seconds': chunk.start_time_seconds,
+            'time_display': time_display,
+            'matching_text': matching_text,
+            'context': context
+        })
+
+    print(f"🔍 Search for '{query}' found {len(results)} result(s)")
 
     return results
+
+
+# === CONVENIENCE WRAPPERS (for backward compatibility) ===
+
+def trigger_preliminary_transcription(conversation_id, chunk_ids):
+    """
+    Wrapper for transcribe_chunks_preliminary() for backward compatibility.
+    """
+    return transcribe_chunks_preliminary(conversation_id, chunk_ids)
+
+
+def trigger_final_transcription(conversation_id):
+    """
+    Wrapper for transcribe_final_audio() for backward compatibility.
+    """
+    return transcribe_final_audio(conversation_id)
