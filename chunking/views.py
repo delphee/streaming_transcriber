@@ -34,13 +34,13 @@ from .s3_handler import (
     get_file_size,
     delete_conversation_audio
 )
+
 from .transcription import (
     transcribe_chunks_preliminary,
     should_trigger_preliminary_transcription,
     transcribe_final_audio,
     search_transcripts
 )
-
 
 def authenticate_request(request):
     print("authenticate_request() is running!......................")
