@@ -89,7 +89,9 @@ MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaw
 # SECURITY WARNING: don't run with debug turned on in production
 
 
-
+# Allow larger file uploads for audio chunks
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB in bytes
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB in bytes
 
 # Application definition
 
