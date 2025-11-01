@@ -331,7 +331,9 @@ def finalize_conversation(request, conversation_id):
 
     # Authenticate
     user, error = authenticate_request(request)
+    print(user,error)
     if error:
+        print("There was an authentication error!")
         return error
 
     # Get conversation
