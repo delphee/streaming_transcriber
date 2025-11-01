@@ -42,7 +42,8 @@ class ChunkedConversationAdmin(admin.ModelAdmin):
     readonly_fields = (
         'id', 'recorded_by', 'started_at', 'ended_at', 'created_at', 'updated_at',
         'chunks_folder_path', 'final_audio_url', 'received_chunks', 'chunk_count',
-        'is_chunks_complete', 'is_final_uploaded', 'is_analyzed', 'audio_uploaded_at'
+        'is_chunks_complete', 'is_final_uploaded', 'is_analyzed', 'audio_uploaded_at',
+        'transcription_error', 'analysis_error'
     )
     fieldsets = (
         ('Basic Info', {
@@ -58,7 +59,10 @@ class ChunkedConversationAdmin(admin.ModelAdmin):
             'fields': ('final_audio_url', 'audio_uploaded_at', 'is_final_uploaded')
         }),
         ('Transcription', {
-            'fields': ('is_analyzed', 'preliminary_transcript', 'full_transcript')
+            'fields': ('is_analyzed', 'preliminary_transcript', 'full_transcript', 'transcription_error')
+        }),
+        ('AI Analysis', {
+            'fields': ('summary', 'action_items', 'key_topics', 'sentiment', 'coaching_feedback', 'analysis_error')
         }),
         ('Deletion Policy', {
             'fields': ('save_permanently', 'scheduled_deletion_date')
