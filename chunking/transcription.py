@@ -19,7 +19,12 @@ from .s3_handler import generate_presigned_download_url
 
 # Initialize clients
 aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
-openai_client = OpenAI(api_key=settings.OPENAI_API_KEY if hasattr(settings, 'OPENAI_API_KEY') else None)
+openai_client = None
+if hasattr(settings, 'OPENAI_API_KEY') and settings.OPENAI_API_KEY:
+    openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    print("✅ OpenAI client initialized")
+else:
+    print("⚠️ OpenAI API key not found - AI analysis will be skipped")
 
 
 # === PRELIMINARY TRANSCRIPTION (Fast, for monitoring) ===
@@ -47,10 +52,10 @@ def transcribe_chunks_preliminary(conversation_id, chunk_ids):
         ).order_by('chunk_number')
 
         if not chunks.exists():
-            print(f"⚠️ No chunks found for preliminary transcription")
+            print(f"âš ï¸ No chunks found for preliminary transcription")
             return False
 
-        print(f"🎤 Starting preliminary transcription for {chunks.count()} chunk(s)")
+        print(f"ðŸŽ¤ Starting preliminary transcription for {chunks.count()} chunk(s)")
 
         transcriber = aai.Transcriber()
 
@@ -65,10 +70,10 @@ def transcribe_chunks_preliminary(conversation_id, chunk_ids):
             presigned_url = generate_presigned_download_url(chunk.s3_chunk_url, expiration=3600)
 
             if not presigned_url:
-                print(f"   ❌ Failed to generate presigned URL for chunk {chunk.chunk_number}")
+                print(f"   âŒ Failed to generate presigned URL for chunk {chunk.chunk_number}")
                 continue
 
-            print(f"   🔗 Using presigned URL for transcription")
+            print(f"   ðŸ”— Using presigned URL for transcription")
 
             # Configure for speed (no speaker diarization)
             config = aai.TranscriptionConfig(
@@ -84,7 +89,7 @@ def transcribe_chunks_preliminary(conversation_id, chunk_ids):
             )
 
             if transcript.status == aai.TranscriptStatus.error:
-                print(f"   ❌ Transcription failed for chunk {chunk.chunk_number}: {transcript.error}")
+                print(f"   âŒ Transcription failed for chunk {chunk.chunk_number}: {transcript.error}")
                 continue
 
             # Save preliminary transcript
@@ -94,7 +99,7 @@ def transcribe_chunks_preliminary(conversation_id, chunk_ids):
             chunk.confidence_score = transcript.confidence if hasattr(transcript, 'confidence') else None
             chunk.save()
 
-            print(f"   ✅ Chunk {chunk.chunk_number} transcribed: {len(transcript.text)} chars")
+            print(f"   âœ… Chunk {chunk.chunk_number} transcribed: {len(transcript.text)} chars")
 
         # Update conversation's preliminary transcript (stitched)
         stitch_preliminary_transcript(conversation)
@@ -103,11 +108,11 @@ def transcribe_chunks_preliminary(conversation_id, chunk_ids):
         conversation.last_preliminary_transcription = timezone.now()
         conversation.save()
 
-        print(f"✅ Preliminary transcription complete")
+        print(f"âœ… Preliminary transcription complete")
         return True
 
     except Exception as e:
-        print(f"❌ Error in preliminary transcription: {e}")
+        print(f"âŒ Error in preliminary transcription: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -147,7 +152,7 @@ def stitch_preliminary_transcript(conversation):
     conversation.preliminary_transcript = "\n\n".join(transcript_parts)
     conversation.save()
 
-    print(f"📝 Stitched preliminary transcript: {len(conversation.preliminary_transcript)} chars")
+    print(f"ðŸ“ Stitched preliminary transcript: {len(conversation.preliminary_transcript)} chars")
 
 
 def should_trigger_preliminary_transcription(conversation):
@@ -199,12 +204,12 @@ def transcribe_final_audio(conversation_id):
 
         if not conversation.final_audio_url:
             error_msg = f"No final audio URL for conversation {conversation_id}"
-            print(f"❌ {error_msg}")
+            print(f"âŒ {error_msg}")
             conversation.transcription_error = error_msg
             conversation.save()
             return False
 
-        print(f"🎤 Starting FINAL transcription for conversation {conversation_id}")
+        print(f"ðŸŽ¤ Starting FINAL transcription for conversation {conversation_id}")
         print(f"   Audio URL: {conversation.final_audio_url}")
 
         # Generate presigned URL for AssemblyAI (1 hour expiration)
@@ -212,12 +217,12 @@ def transcribe_final_audio(conversation_id):
 
         if not presigned_url:
             error_msg = "Failed to generate presigned URL for final audio"
-            print(f"❌ {error_msg}")
+            print(f"âŒ {error_msg}")
             conversation.transcription_error = error_msg
             conversation.save()
             return False
 
-        print(f"   🔗 Using presigned URL for final transcription")
+        print(f"   ðŸ”— Using presigned URL for final transcription")
 
         # Configure for maximum quality with speaker diarization
         config = aai.TranscriptionConfig(
@@ -238,12 +243,12 @@ def transcribe_final_audio(conversation_id):
 
         if transcript.status == aai.TranscriptStatus.error:
             error_msg = f"Final transcription failed: {transcript.error}"
-            print(f"❌ {error_msg}")
+            print(f"âŒ {error_msg}")
             conversation.transcription_error = error_msg
             conversation.save()
             return False
 
-        print(f"✅ Final transcription complete")
+        print(f"âœ… Final transcription complete")
         print(f"   Text length: {len(transcript.text)} chars")
         print(f"   Speakers detected: {len(set([u.speaker for u in transcript.utterances])) if transcript.utterances else 0}")
 
@@ -268,12 +273,12 @@ def transcribe_final_audio(conversation_id):
         conversation.is_analyzed = True
         conversation.save()
 
-        print(f"✅ Final analysis complete for conversation {conversation_id}")
+        print(f"âœ… Final analysis complete for conversation {conversation_id}")
         return True
 
     except Exception as e:
         error_msg = f"Error in final transcription: {str(e)}"
-        print(f"❌ {error_msg}")
+        print(f"âŒ {error_msg}")
         import traceback
         traceback.print_exc()
 
@@ -297,7 +302,7 @@ def create_speakers_and_segments(conversation, transcript):
     """
     from .models import Speaker, TranscriptSegment
 
-    print(f"👥 Creating speakers and segments...")
+    print(f"ðŸ‘¥ Creating speakers and segments...")
 
     # Get unique speaker labels
     speaker_labels = set([u.speaker for u in transcript.utterances])
@@ -329,7 +334,7 @@ def create_speakers_and_segments(conversation, transcript):
         )
         segment_count += 1
 
-    print(f"✅ Created {len(speakers_map)} speakers and {segment_count} segments")
+    print(f"âœ… Created {len(speakers_map)} speakers and {segment_count} segments")
 
 
 def identify_speakers_with_ai(conversation):
@@ -343,10 +348,10 @@ def identify_speakers_with_ai(conversation):
     from .models import Speaker, TranscriptSegment
 
     if not openai_client:
-        print(f"⚠️ OpenAI client not configured, skipping speaker identification")
+        print(f"âš ï¸ OpenAI client not configured, skipping speaker identification")
         return
 
-    print(f"🤖 Using AI to identify speakers...")
+    print(f"ðŸ¤– Using AI to identify speakers...")
 
     speakers = Speaker.objects.filter(conversation=conversation)
 
@@ -459,16 +464,16 @@ Respond with ONLY a valid JSON object (no markdown, no explanation):
                         identified_name.lower() in recording_user_name.lower() or
                         "recording user" in reasoning.lower()):
                     speaker.is_recording_user = True
-                    print(f"   👤 Marked {speaker.speaker_label} as recording user")
+                    print(f"   ðŸ‘¤ Marked {speaker.speaker_label} as recording user")
 
                 speaker.save()
-                print(f"   ✅ Updated {speaker.speaker_label} -> {identified_name}")
+                print(f"   âœ… Updated {speaker.speaker_label} -> {identified_name}")
 
         except json.JSONDecodeError as e:
-            print(f"   ❌ Failed to parse AI response for {speaker.speaker_label}: {e}")
+            print(f"   âŒ Failed to parse AI response for {speaker.speaker_label}: {e}")
             print(f"      Response was: {result_text[:200]}")
         except Exception as e:
-            print(f"   ❌ Error identifying {speaker.speaker_label}: {e}")
+            print(f"   âŒ Error identifying {speaker.speaker_label}: {e}")
             import traceback
             traceback.print_exc()
 
@@ -486,10 +491,10 @@ def analyze_conversation(conversation):
         conversation: ChunkedConversation instance
     """
     if not openai_client:
-        print(f"⚠️ OpenAI client not configured, skipping conversation analysis")
+        print(f"âš ï¸ OpenAI client not configured, skipping conversation analysis")
         return
 
-    print(f"🔍 Analyzing conversation with AI...")
+    print(f"ðŸ” Analyzing conversation with AI...")
 
     try:
         # Get the full transcript
@@ -560,7 +565,7 @@ Respond with ONLY valid JSON (no markdown):
 
         conversation.save()
 
-        print(f"✅ Conversation analysis complete")
+        print(f"âœ… Conversation analysis complete")
         print(f"   Summary: {conversation.summary[:100]}...")
         print(f"   Action items: {len(conversation.action_items)}")
         print(f"   Key topics: {', '.join(conversation.key_topics)}")
@@ -568,13 +573,13 @@ Respond with ONLY valid JSON (no markdown):
 
     except json.JSONDecodeError as e:
         error_msg = f"Failed to parse AI analysis: {str(e)}"
-        print(f"❌ {error_msg}")
+        print(f"âŒ {error_msg}")
         print(f"   Response was: {result_text[:200]}")
         conversation.analysis_error = error_msg
         conversation.save()
     except Exception as e:
         error_msg = f"Error analyzing conversation: {str(e)}"
-        print(f"❌ {error_msg}")
+        print(f"âŒ {error_msg}")
         import traceback
         traceback.print_exc()
         conversation.analysis_error = error_msg
@@ -652,7 +657,7 @@ def search_transcripts(conversation_id, query):
             'context': context
         })
 
-    print(f"🔍 Search for '{query}' found {len(results)} result(s)")
+    print(f"ðŸ” Search for '{query}' found {len(results)} result(s)")
 
     return results
 
