@@ -242,7 +242,6 @@ def upload_chunk(request):
 
 @csrf_exempt
 def request_upload_url(request, conversation_id):
-    print("request_upload_url() is running!!!!!!!!!!!")
     """
     POST /chunking/<conversation_id>/request-upload/
 
@@ -292,15 +291,31 @@ def request_upload_url(request, conversation_id):
         return JsonResponse({'error': 'Failed to generate presigned URL'}, status=500)
 
     # Store the expected S3 URL (iOS will upload here)
-    conversation.final_audio_url = result['s3_url']
-    conversation.save()
-    # Force commit and verify
-    from django.db import connection
-    connection.commit()  # Force transaction commit
+    s3_url = result['s3_url']
+    print(f"📝 Attempting to save S3 URL: {s3_url}")
+    print(f"   URL length: {len(s3_url)} characters")
 
-    # Verify it saved
-    conversation.refresh_from_db()
-    print(f"✅ VERIFIED final_audio_url saved: {conversation.final_audio_url}")
+    try:
+        conversation.final_audio_url = s3_url
+        conversation.save(update_fields=['final_audio_url'])
+
+        # VERIFY it was actually saved by re-fetching from database
+        conversation.refresh_from_db()
+        saved_url = conversation.final_audio_url
+
+        if saved_url == s3_url:
+            print(f"✅ VERIFIED: URL saved correctly")
+        else:
+            print(f"❌ ERROR: URL mismatch after save!")
+            print(f"   Expected: {s3_url}")
+            print(f"   Got: {saved_url}")
+            return JsonResponse({'error': 'Failed to save upload URL'}, status=500)
+
+    except Exception as e:
+        print(f"❌ Exception saving final_audio_url: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'error': f'Database error: {str(e)}'}, status=500)
 
     print(f"✅ Presigned URL generated, expires in {result['expires_in']}s")
 

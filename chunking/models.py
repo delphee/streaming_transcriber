@@ -33,7 +33,7 @@ class ChunkedConversation(models.Model):
     last_preliminary_transcription = models.DateTimeField(null=True, blank=True)
 
     # === COMPLETE FILE SYSTEM (Final Analysis) ===
-    final_audio_url = models.URLField(blank=True)  # Complete preprocessed FLAC from iOS
+    final_audio_url = models.URLField(max_length=500, blank=True)  # Complete preprocessed FLAC from iOS
     audio_uploaded_at = models.DateTimeField(null=True, blank=True)
 
     # === STATUS FLAGS ===
