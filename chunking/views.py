@@ -294,6 +294,13 @@ def request_upload_url(request, conversation_id):
     # Store the expected S3 URL (iOS will upload here)
     conversation.final_audio_url = result['s3_url']
     conversation.save()
+    # Force commit and verify
+    from django.db import connection
+    connection.commit()  # Force transaction commit
+
+    # Verify it saved
+    conversation.refresh_from_db()
+    print(f"✅ VERIFIED final_audio_url saved: {conversation.final_audio_url}")
 
     print(f"✅ Presigned URL generated, expires in {result['expires_in']}s")
 
