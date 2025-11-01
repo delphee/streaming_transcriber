@@ -331,26 +331,36 @@ def finalize_conversation(request, conversation_id):
 
     # Authenticate
     user, error = authenticate_request(request)
-    print(user,error)
     if error:
-        print("There was an authentication error!")
         return error
+
+    print(f"🎬 FINALIZE called for conversation {conversation_id}")
 
     # Get conversation
     try:
         conversation = ChunkedConversation.objects.get(id=conversation_id, recorded_by=user)
+        print(f"✅ Conversation found: {conversation_id}")
+        print(f"   final_audio_url: {conversation.final_audio_url}")
+        print(f"   is_final_uploaded: {conversation.is_final_uploaded}")
     except ChunkedConversation.DoesNotExist:
+        print(f"❌ Conversation not found: {conversation_id}")
         return JsonResponse({'error': 'Conversation not found'}, status=404)
 
     # Check if final URL exists
     if not conversation.final_audio_url:
+        print(f"❌ FAILED: No final audio URL exists!")
         return JsonResponse({'error': 'No final audio URL - request upload URL first'}, status=400)
 
     print(f"🎬 Finalizing conversation {conversation_id}")
+    print(f"   Checking if file exists in S3: {conversation.final_audio_url}")
 
     # Verify the file exists in S3
     if not verify_file_exists(conversation.final_audio_url):
-        return JsonResponse({'error': 'Final audio file not found in S3'}, status=404)
+        print(f"❌ FAILED: Final audio file not found in S3")
+        print(f"   This might mean the upload is still in progress!")
+        return JsonResponse({'error': 'Final audio file not found in S3 - upload may still be in progress'}, status=404)
+
+    print(f"✅ File exists in S3")
 
     # Get file size for logging
     file_size = get_file_size(conversation.final_audio_url)
