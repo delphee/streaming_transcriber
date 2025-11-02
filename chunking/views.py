@@ -393,6 +393,7 @@ def conversation_detail(request, conversation_id):
         'is_analyzed': conversation.is_analyzed,
         'preliminary_transcript': conversation.preliminary_transcript,
         'full_transcript': conversation.full_transcript,
+        'formatted_transcript': conversation.formatted_transcript,
         'speakers': speakers_data,
         'segments': segments_data,
         # Analysis results

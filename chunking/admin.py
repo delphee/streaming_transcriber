@@ -59,7 +59,7 @@ class ChunkedConversationAdmin(admin.ModelAdmin):
             'fields': ('final_audio_url', 'audio_uploaded_at', 'is_final_uploaded')
         }),
         ('Transcription', {
-            'fields': ('is_analyzed', 'preliminary_transcript', 'full_transcript', 'transcription_error')
+            'fields': ('is_analyzed', 'preliminary_transcript', 'full_transcript', 'formatted_transcript', 'transcription_error')
         }),
         ('AI Analysis', {
             'fields': ('summary', 'action_items', 'key_topics', 'sentiment', 'coaching_feedback', 'analysis_error')

@@ -49,6 +49,7 @@ class ChunkedConversation(models.Model):
     # === TRANSCRIPTION RESULTS ===
     full_transcript = models.TextField(blank=True)  # Complete conversation transcript
     preliminary_transcript = models.TextField(blank=True)  # Stitched chunk transcripts
+    formatted_transcript = models.TextField(blank=True)  # Formatted with speaker names and timestamps
 
     # === AI ANALYSIS RESULTS ===
     summary = models.TextField(blank=True)  # Conversation summary

@@ -265,6 +265,10 @@ def transcribe_final_audio(conversation_id):
         if openai_client and transcript.utterances:
             identify_speakers_with_ai(conversation)
 
+        # Generate formatted transcript with speaker names
+        if transcript.utterances:
+            generate_formatted_transcript(conversation)
+           
         # Generate conversation analysis
         if openai_client:
             analyze_conversation(conversation)
@@ -476,6 +480,54 @@ Respond with ONLY a valid JSON object (no markdown, no explanation):
             print(f"   âŒ Error identifying {speaker.speaker_label}: {e}")
             import traceback
             traceback.print_exc()
+
+
+def generate_formatted_transcript(conversation):
+    """
+    Generate a formatted transcript with speaker names and timestamps.
+    Called after speaker identification completes.
+
+    Format: [MM:SS] Speaker Name: Text
+
+    Args:
+        conversation: ChunkedConversation instance
+    """
+    from .models import TranscriptSegment
+
+    print(f"📝 Generating formatted transcript...")
+
+    segments = TranscriptSegment.objects.filter(
+        conversation=conversation
+    ).select_related('speaker').order_by('start_time')
+
+    if not segments.exists():
+        print(f"   No segments to format")
+        return
+
+    formatted_lines = []
+
+    for segment in segments:
+        # Get speaker name (identified name or label)
+        if segment.speaker:
+            speaker_name = segment.speaker.identified_name or segment.speaker.speaker_label
+        else:
+            speaker_name = "Unknown"
+
+        # Format timestamp (milliseconds to MM:SS)
+        total_seconds = segment.start_time // 1000
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        timestamp = f"[{minutes}:{seconds:02d}]"
+
+        # Format line: [MM:SS] Name: Text
+        line = f"{timestamp} {speaker_name}: {segment.text}"
+        formatted_lines.append(line)
+
+    # Join with double newlines for readability
+    conversation.formatted_transcript = "\n\n".join(formatted_lines)
+    conversation.save()
+
+    print(f"✅ Formatted transcript generated: {len(formatted_lines)} segments")
 
 
 def analyze_conversation(conversation):
