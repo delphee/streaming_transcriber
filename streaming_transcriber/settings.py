@@ -62,11 +62,6 @@ AWS_S3_VERIFY = True
 
 # === CHUNKING APP CONFIGURATION ===
 
-# Preliminary transcription trigger (transcribe after every N chunks)
-PRELIMINARY_TRANSCRIPTION_BATCH_SIZE = 1  # Start with 1 for testing, increase to 2-3 for production
-
-# Audio retention policy (days)
-CHUNK_AUDIO_RETENTION_DAYS = 7  # How long to keep chunk files
 FINAL_AUDIO_RETENTION_DAYS = 7  # How long to keep final complete files
 
 # Presigned URL expiration (seconds)
@@ -78,7 +73,16 @@ PRESIGNED_URL_EXPIRATION = 3600  # 1 hour for iOS to upload complete file
 # Media files configuration
 MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/'
 
+# === CHUNKING APP CONFIGURATION ===
 
+# Chunk audio retention (for preliminary transcription)
+CHUNK_AUDIO_RETENTION_DAYS = 7  # Delete chunk audio files after 7 days
+
+# Complete conversation retention
+CONVERSATION_RETENTION_DAYS = 30  # Delete everything after 30 days
+
+# Transcription batching (transcribe every N chunks)
+PRELIMINARY_TRANSCRIPTION_BATCH_SIZE = 4  # 4 chunks × 30s = 2 minutes
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/

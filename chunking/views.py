@@ -35,6 +35,13 @@ from .s3_handler import (
     delete_conversation_audio
 )
 
+from .s3_handler_hybrid import (
+        start_multipart_upload,
+        upload_chunk_hybrid,
+        complete_multipart_upload,
+        abort_multipart_upload
+    )
+
 from .transcription import (
     transcribe_chunks_preliminary,
     should_trigger_preliminary_transcription,
@@ -65,177 +72,6 @@ def authenticate_request(request):
 
 # === CHUNK UPLOAD ===
 
-@csrf_exempt
-def upload_chunk(request):
-    print("upload_chunk() is running!......................")
-    """
-    POST /chunking/chunk/
-
-    Upload a single preprocessed FLAC chunk from iOS.
-
-    Headers:
-        Authorization: Bearer <token>
-        X-Conversation-ID: UUID
-        X-Chunk-Number: int
-        X-Chunk-Start-Time: seconds (int)
-        X-Chunk-Duration: seconds (int)
-        X-Is-Final-Chunk: true/false
-        X-Sample-Rate: 44100
-        X-RMS-Level: float (optional)
-        X-Peak-Amplitude: float (optional)
-        X-Speech-Percentage: float (optional)
-
-    Body: FLAC audio file (Content-Type: audio/flac)
-
-    Returns: {
-        success: bool,
-        chunk_number: int,
-        total_received: int,
-        is_complete: bool
-    }
-    """
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST required'}, status=405)
-
-    # Authenticate
-    user, error = authenticate_request(request)
-    if error:
-        return error
-
-    # Extract headers
-    try:
-        conversation_id = request.headers.get('X-Conversation-ID')
-        chunk_number = int(request.headers.get('X-Chunk-Number'))
-        chunk_start_time = int(request.headers.get('X-Chunk-Start-Time'))
-        chunk_duration = int(request.headers.get('X-Chunk-Duration'))
-        is_final_chunk = request.headers.get('X-Is-Final-Chunk', 'false').lower() == 'true'
-
-        # Optional quality metrics
-        rms_level = request.headers.get('X-RMS-Level')
-        peak_amplitude = request.headers.get('X-Peak-Amplitude')
-        speech_percentage = request.headers.get('X-Speech-Percentage')
-
-    except (ValueError, TypeError) as e:
-        return JsonResponse({'error': f'Invalid headers: {e}'}, status=400)
-
-    if not conversation_id:
-        return JsonResponse({'error': 'X-Conversation-ID required'}, status=400)
-
-    # Get audio data from request body
-    chunk_data = request.body
-
-    if not chunk_data:
-        return JsonResponse({'error': 'No audio data in request body'}, status=400)
-
-    print(f"📦 Received chunk {chunk_number} for conversation {conversation_id}")
-    print(f"   Size: {len(chunk_data):,} bytes")
-    print(f"   Start time: {chunk_start_time}s, Duration: {chunk_duration}s")
-    print(f"   Is final: {is_final_chunk}")
-
-    # Get or create conversation
-    conversation, created = ChunkedConversation.objects.get_or_create(
-        id=conversation_id,
-        defaults={
-            'recorded_by': user,
-            'started_at': timezone.now()
-        }
-    )
-
-    if created:
-        print(f"✅ Created new conversation {conversation_id}")
-
-    # Check if this chunk already exists (idempotency)
-    existing_chunk = AudioChunk.objects.filter(
-        conversation=conversation,
-        chunk_number=chunk_number
-    ).first()
-
-    if existing_chunk:
-        print(f"⚠️  Chunk {chunk_number} already exists, skipping upload")
-        return JsonResponse({
-            'success': True,
-            'chunk_number': chunk_number,
-            'total_received': len(conversation.received_chunks),
-            'is_complete': conversation.is_chunks_complete,
-            'message': 'Chunk already received'
-        })
-
-    # Upload chunk to S3
-    s3_url, chunks_folder = upload_chunk_to_s3(
-        conversation_id,
-        chunk_number,
-        chunk_data,
-        user.username
-    )
-
-    if not s3_url:
-        return JsonResponse({'error': 'Failed to upload chunk to S3'}, status=500)
-
-    # Save chunks folder path (first time)
-    if not conversation.chunks_folder_path and chunks_folder:
-        conversation.chunks_folder_path = chunks_folder
-
-    # Create AudioChunk record
-    chunk = AudioChunk.objects.create(
-        conversation=conversation,
-        chunk_number=chunk_number,
-        start_time_seconds=chunk_start_time,
-        duration_seconds=chunk_duration,
-        s3_chunk_url=s3_url,
-        rms_level=float(rms_level) if rms_level else None,
-        peak_amplitude=float(peak_amplitude) if peak_amplitude else None,
-        speech_percentage=float(speech_percentage) if speech_percentage else None
-    )
-
-    # Update received chunks list
-    received_chunks = conversation.received_chunks or []
-    if chunk_number not in received_chunks:
-        received_chunks.append(chunk_number)
-        received_chunks.sort()
-        conversation.received_chunks = received_chunks
-
-    # Update chunk count and duration
-    conversation.chunk_count = len(received_chunks)
-    conversation.total_duration_seconds = chunk_start_time + chunk_duration
-    conversation.save()
-
-    print(f"✅ Chunk {chunk_number} saved successfully")
-    print(f"   Total chunks received: {len(received_chunks)}")
-
-    # Check if this is the final chunk
-    if is_final_chunk:
-        print(f"🏁 Final chunk received, marking conversation as complete")
-        conversation.is_chunks_complete = True
-        conversation.ended_at = timezone.now()
-
-        # Schedule deletion (7 days from now)
-        conversation.schedule_deletion(days=settings.CHUNK_AUDIO_RETENTION_DAYS)
-
-        conversation.save()
-
-        print(f"📅 Scheduled deletion for: {conversation.scheduled_deletion_date}")
-
-    # Check if we should trigger preliminary transcription
-    should_transcribe, chunk_ids = should_trigger_preliminary_transcription(conversation)
-
-    if should_transcribe and chunk_ids:
-        print(f"🎤 Triggering preliminary transcription for {len(chunk_ids)} chunk(s)")
-
-        # Run transcription in background thread
-        transcription_thread = threading.Thread(
-            target=transcribe_chunks_preliminary,
-            args=(conversation_id, chunk_ids)
-        )
-        transcription_thread.start()
-
-    # Return response
-    return JsonResponse({
-        'success': True,
-        'chunk_number': chunk_number,
-        'total_received': len(received_chunks),
-        'is_complete': conversation.is_chunks_complete,
-        'message': 'Chunk uploaded successfully'
-    })
 
 
 # === FINAL FILE UPLOAD (Presigned URL) ===
@@ -931,3 +767,262 @@ def search_conversations(request):
         'results': results,
         'total': len(results)
     })
+
+
+@csrf_exempt
+def upload_chunk(request):
+    """
+    Upload chunk: Individual file + multipart part via UploadPartCopy.
+    Transcribes every 4 chunks (2 minutes).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    user, error = authenticate_request(request)
+    if error:
+        return error
+
+    try:
+        conversation_id = request.headers.get('X-Conversation-ID')
+        chunk_number = int(request.headers.get('X-Chunk-Number'))
+        chunk_start_time = int(request.headers.get('X-Chunk-Start-Time'))
+        chunk_duration = int(request.headers.get('X-Chunk-Duration'))
+        is_final_chunk = request.headers.get('X-Is-Final-Chunk', 'false').lower() == 'true'
+
+        rms_level = request.headers.get('X-RMS-Level')
+        peak_amplitude = request.headers.get('X-Peak-Amplitude')
+        speech_percentage = request.headers.get('X-Speech-Percentage')
+
+    except (ValueError, TypeError) as e:
+        return JsonResponse({'error': f'Invalid headers: {e}'}, status=400)
+
+    if not conversation_id:
+        return JsonResponse({'error': 'X-Conversation-ID required'}, status=400)
+
+    chunk_data = request.body
+    if not chunk_data:
+        return JsonResponse({'error': 'No audio data'}, status=400)
+
+    print(f"📦 Chunk {chunk_number} for {conversation_id}")
+    print(f"   Size: {len(chunk_data):,} bytes")
+    print(f"   Start: {chunk_start_time}s, Duration: {chunk_duration}s")
+    print(f"   Final: {is_final_chunk}")
+
+    # Validate start_time (server-side check)
+    expected_start = chunk_number * 30
+    if chunk_start_time != expected_start:
+        print(f"⚠️  Start time mismatch! Expected {expected_start}, got {chunk_start_time}")
+        print(f"   Using calculated: {expected_start}")
+        chunk_start_time = expected_start
+
+
+
+    conversation, created = ChunkedConversation.objects.get_or_create(
+        id=conversation_id,
+        defaults={
+            'recorded_by': user,
+            'started_at': timezone.now()
+        }
+    )
+
+    if created:
+        print(f"✅ Created conversation {conversation_id}")
+
+    # First chunk: start multipart
+    if chunk_number == 0:
+        print(f"🚀 First chunk - starting multipart upload")
+
+        result = start_multipart_upload(conversation_id, user.username)
+
+        if not result['success']:
+            return JsonResponse({
+                'error': 'Failed to start multipart upload',
+                'details': result.get('error')
+            }, status=500)
+
+        conversation.multipart_upload_id = result['upload_id']
+        conversation.multipart_s3_key = result['s3_key']
+        conversation.final_audio_url = result['s3_url']
+        conversation.multipart_parts = []
+        conversation.save()
+
+        print(f"✅ Multipart initialized: {result['upload_id']}")
+
+    # Check idempotency
+    existing_chunk = AudioChunk.objects.filter(
+        conversation=conversation,
+        chunk_number=chunk_number
+    ).first()
+
+    if existing_chunk:
+        print(f"⚠️  Chunk {chunk_number} already exists")
+        return JsonResponse({
+            'success': True,
+            'chunk_number': chunk_number,
+            'total_received': len(conversation.received_chunks),
+            'is_complete': conversation.is_chunks_complete,
+            'message': 'Already received'
+        })
+
+    # Upload chunk (individual + multipart)
+    if not conversation.multipart_upload_id:
+        return JsonResponse({
+            'error': 'No multipart upload - chunk 0 must be sent first'
+        }, status=400)
+
+    upload_result = upload_chunk_hybrid(
+        conversation_id=conversation_id,
+        chunk_number=chunk_number,
+        chunk_data=chunk_data,
+        username=user.username,
+        multipart_upload_id=conversation.multipart_upload_id,
+        multipart_s3_key=conversation.multipart_s3_key
+    )
+
+    if not upload_result['success']:
+        print(f"❌ Upload failed, aborting multipart")
+        abort_multipart_upload(
+            conversation.multipart_upload_id,
+            conversation.multipart_s3_key
+        )
+        return JsonResponse({
+            'error': 'Failed to upload chunk',
+            'details': upload_result.get('error')
+        }, status=500)
+
+    # Save part info
+    parts = conversation.multipart_parts or []
+    parts.append({
+        'part_number': upload_result['part_number'],
+        'etag': upload_result['part_etag']
+    })
+    conversation.multipart_parts = parts
+
+    if not conversation.chunks_folder_path:
+        conversation.chunks_folder_path = upload_result['chunks_folder']
+
+    conversation.save()
+
+    print(f"✅ Chunk {chunk_number} uploaded")
+
+    # Create AudioChunk record
+    chunk = AudioChunk.objects.create(
+        conversation=conversation,
+        chunk_number=chunk_number,
+        start_time_seconds=chunk_start_time,
+        duration_seconds=chunk_duration,
+        s3_chunk_url=upload_result['chunk_s3_url'],
+        rms_level=float(rms_level) if rms_level else None,
+        peak_amplitude=float(peak_amplitude) if peak_amplitude else None,
+        speech_percentage=float(speech_percentage) if speech_percentage else None
+    )
+
+    # Update received chunks
+    received_chunks = conversation.received_chunks or []
+    if chunk_number not in received_chunks:
+        received_chunks.append(chunk_number)
+        received_chunks.sort()
+        conversation.received_chunks = received_chunks
+
+    conversation.chunk_count = len(received_chunks)
+    conversation.total_duration_seconds = chunk_start_time + chunk_duration
+    conversation.save()
+
+    print(f"   Total received: {len(received_chunks)}")
+
+    # Final chunk: complete multipart + trigger transcription
+    if is_final_chunk:
+        print(f"🏁 Final chunk - completing multipart")
+
+        complete_result = complete_multipart_upload(
+            upload_id=conversation.multipart_upload_id,
+            s3_key=conversation.multipart_s3_key,
+            parts=conversation.multipart_parts
+        )
+
+        if not complete_result['success']:
+            print(f"❌ Failed to complete multipart")
+            return JsonResponse({
+                'error': 'Failed to complete multipart upload',
+                'details': complete_result.get('error')
+            }, status=500)
+
+        print(f"✅ Multipart complete: {complete_result['s3_url']}")
+
+        conversation.is_chunks_complete = True
+        conversation.is_final_uploaded = True
+        conversation.audio_uploaded_at = timezone.now()
+        conversation.ended_at = timezone.now()
+
+        if not conversation.title:
+            conversation.title = f"Conversation - {conversation.get_duration_display()}"
+
+        conversation.schedule_deletion(days=settings.CONVERSATION_RETENTION_DAYS)
+        conversation.save()
+
+        print(f"📅 Deletion scheduled: {conversation.scheduled_deletion_date}")
+        print(f"🎤 Starting final transcription")
+
+        def transcribe_with_error_handling():
+            try:
+                from .transcription import transcribe_final_audio
+                transcribe_final_audio(conversation_id)
+            except Exception as e:
+                print(f"❌ Transcription error: {e}")
+                import traceback
+                traceback.print_exc()
+                try:
+                    conv = ChunkedConversation.objects.get(id=conversation_id)
+                    conv.transcription_error = str(e)
+                    conv.save()
+                except:
+                    pass
+
+        transcription_thread = threading.Thread(
+            target=transcribe_with_error_handling,
+            daemon=True
+        )
+        transcription_thread.start()
+
+        return JsonResponse({
+            'success': True,
+            'chunk_number': chunk_number,
+            'total_received': len(received_chunks),
+            'is_complete': True,
+            'transcription_started': True,
+            'message': 'Complete'
+        })
+
+    # Non-final chunk: check if should transcribe
+    batch_size = getattr(settings, 'PRELIMINARY_TRANSCRIPTION_BATCH_SIZE', 4)
+
+    untranscribed = AudioChunk.objects.filter(
+        conversation=conversation,
+        transcript_text=''
+    ).order_by('chunk_number')
+
+    if untranscribed.count() >= batch_size:
+        print(f"🎤 Triggering batch transcription ({batch_size} chunks)")
+
+        chunk_ids = list(untranscribed[:batch_size].values_list('id', flat=True))
+
+        def transcribe_batch():
+            try:
+                from .transcription import transcribe_chunks_preliminary
+                transcribe_chunks_preliminary(conversation_id, chunk_ids)
+            except Exception as e:
+                print(f"❌ Preliminary transcription error: {e}")
+                import traceback
+                traceback.print_exc()
+
+        threading.Thread(target=transcribe_batch, daemon=True).start()
+
+    return JsonResponse({
+        'success': True,
+        'chunk_number': chunk_number,
+        'total_received': len(received_chunks),
+        'is_complete': False,
+        'message': 'Uploaded'
+    })
+
+

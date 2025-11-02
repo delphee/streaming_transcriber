@@ -36,6 +36,11 @@ class ChunkedConversation(models.Model):
     final_audio_url = models.URLField(max_length=500, blank=True)  # Complete preprocessed FLAC from iOS
     audio_uploaded_at = models.DateTimeField(null=True, blank=True)
 
+    # === MULTIPART UPLOAD TRACKING ===
+    multipart_upload_id = models.CharField(max_length=255, blank=True)
+    multipart_s3_key = models.CharField(max_length=500, blank=True)
+    multipart_parts = models.JSONField(default=list)
+
     # === STATUS FLAGS ===
     is_chunks_complete = models.BooleanField(default=False)  # All chunks received
     is_final_uploaded = models.BooleanField(default=False)  # Complete file uploaded
