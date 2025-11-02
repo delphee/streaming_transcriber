@@ -815,7 +815,13 @@ def upload_chunk(request):
         print(f"   Using calculated: {expected_start}")
         chunk_start_time = expected_start
 
-
+    from .s3_handler_hybrid import (
+        start_multipart_upload,
+        upload_chunk_hybrid,
+        complete_multipart_upload,
+        abort_multipart_upload,
+        concatenate_and_upload_small_conversation
+    )
 
     conversation, created = ChunkedConversation.objects.get_or_create(
         id=conversation_id,
@@ -932,22 +938,64 @@ def upload_chunk(request):
 
     # Final chunk: complete multipart + trigger transcription
     if is_final_chunk:
-        print(f"🏁 Final chunk - completing multipart")
+        print(f"🏁 Final chunk - checking chunk count")
 
-        complete_result = complete_multipart_upload(
-            upload_id=conversation.multipart_upload_id,
-            s3_key=conversation.multipart_s3_key,
-            parts=conversation.multipart_parts
-        )
+        total_chunks = len(received_chunks)
+        print(f"   Total chunks: {total_chunks}")
 
-        if not complete_result['success']:
-            print(f"❌ Failed to complete multipart")
-            return JsonResponse({
-                'error': 'Failed to complete multipart upload',
-                'details': complete_result.get('error')
-            }, status=500)
+        # S3 multipart requires ≥5MB per part (except last)
+        # Our chunks are ~1MB each, so need ≥5 chunks for multipart
+        if total_chunks < 5:
+            print(f"⚠️  < 5 chunks - using concatenation instead of multipart")
 
-        print(f"✅ Multipart complete: {complete_result['s3_url']}")
+            # Abort the multipart upload
+            abort_multipart_upload(
+                conversation.multipart_upload_id,
+                conversation.multipart_s3_key
+            )
+
+            # Get all chunk URLs in order
+            chunks_in_order = AudioChunk.objects.filter(
+                conversation=conversation
+            ).order_by('chunk_number')
+
+            chunk_s3_urls = [c.s3_chunk_url for c in chunks_in_order]
+
+            # Concatenate and upload as regular file
+            concat_result = concatenate_and_upload_small_conversation(
+                conversation_id=conversation_id,
+                username=user.username,
+                chunk_s3_urls=chunk_s3_urls
+            )
+
+            if not concat_result['success']:
+                print(f"❌ Failed to concatenate chunks")
+                return JsonResponse({
+                    'error': 'Failed to create complete file',
+                    'details': concat_result.get('error')
+                }, status=500)
+
+            # Update final_audio_url with concatenated file
+            conversation.final_audio_url = concat_result['s3_url']
+            print(f"✅ Concatenation complete: {concat_result['s3_url']}")
+
+        else:
+            print(f"✅ ≥5 chunks - completing multipart upload")
+
+            complete_result = complete_multipart_upload(
+                upload_id=conversation.multipart_upload_id,
+                s3_key=conversation.multipart_s3_key,
+                parts=conversation.multipart_parts
+            )
+
+            if not complete_result['success']:
+                print(f"❌ Failed to complete multipart")
+                return JsonResponse({
+                    'error': 'Failed to complete multipart upload',
+                    'details': complete_result.get('error')
+                }, status=500)
+
+            print(f"✅ Multipart complete: {complete_result['s3_url']}")
 
         conversation.is_chunks_complete = True
         conversation.is_final_uploaded = True

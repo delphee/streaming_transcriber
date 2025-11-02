@@ -207,6 +207,68 @@ def abort_multipart_upload(upload_id, s3_key):
         return False
 
 
+def concatenate_and_upload_small_conversation(conversation_id, username, chunk_s3_urls):
+    """
+    For conversations < 5 chunks (< 5MB), concatenate chunks and upload as regular file.
+    This avoids S3 multipart 5MB minimum part size requirement.
+
+    Args:
+        conversation_id: Conversation UUID
+        username: Username for folder structure
+        chunk_s3_urls: List of S3 URLs for chunks in order
+
+    Returns:
+        dict: {'s3_url': str, 'success': bool}
+    """
+    try:
+        s3_client = get_s3_client()
+        safe_username = sanitize_username_for_s3(username)
+
+        print(f"🔗 Concatenating {len(chunk_s3_urls)} chunks for small conversation")
+
+        # Download all chunks and concatenate in memory
+        concatenated_data = b''
+
+        for idx, chunk_url in enumerate(chunk_s3_urls):
+            key = chunk_url.split('.amazonaws.com/')[-1]
+
+            print(f"   Downloading chunk {idx}...")
+            response = s3_client.get_object(
+                Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                Key=key
+            )
+
+            chunk_data = response['Body'].read()
+            concatenated_data += chunk_data
+            print(f"   ✅ Chunk {idx}: {len(chunk_data):,} bytes")
+
+        print(f"   Total size: {len(concatenated_data):,} bytes")
+
+        # Upload as single file
+        s3_key = f"conversations/{safe_username}/{conversation_id}/complete.flac"
+
+        print(f"   Uploading complete file: {s3_key}")
+
+        s3_client.put_object(
+            Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+            Key=s3_key,
+            Body=concatenated_data,
+            ContentType='audio/flac'
+        )
+
+        s3_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{s3_key}"
+
+        print(f"✅ Complete file uploaded: {s3_url}")
+
+        return {'s3_url': s3_url, 'success': True}
+
+    except ClientError as e:
+        print(f"❌ Error concatenating chunks: {e}")
+        import traceback
+        traceback.print_exc()
+        return {'success': False, 'error': str(e)}
+
+
 def delete_chunk_files(chunks_folder_path):
     """Delete all chunk files in conversation's chunks folder."""
     try:
