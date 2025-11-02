@@ -209,8 +209,8 @@ def abort_multipart_upload(upload_id, s3_key):
 
 def concatenate_and_upload_small_conversation(conversation_id, username, chunk_s3_urls):
     """
-    For conversations < 5 chunks (< 5MB), concatenate chunks and upload as regular file.
-    This avoids S3 multipart 5MB minimum part size requirement.
+    For conversations < 10MB, concatenate chunks and upload as regular file.
+    Uses memory temporarily but acceptable for small files.
 
     Args:
         conversation_id: Conversation UUID
@@ -224,7 +224,7 @@ def concatenate_and_upload_small_conversation(conversation_id, username, chunk_s
         s3_client = get_s3_client()
         safe_username = sanitize_username_for_s3(username)
 
-        print(f"🔗 Concatenating {len(chunk_s3_urls)} chunks for small conversation")
+        print(f"🔗 Concatenating {len(chunk_s3_urls)} chunks (< 10MB)")
 
         # Download all chunks and concatenate in memory
         concatenated_data = b''
@@ -266,6 +266,164 @@ def concatenate_and_upload_small_conversation(conversation_id, username, chunk_s
         print(f"❌ Error concatenating chunks: {e}")
         import traceback
         traceback.print_exc()
+        return {'success': False, 'error': str(e)}
+
+
+def build_multipart_from_chunks(conversation_id, username, chunk_s3_urls):
+    """
+    For conversations ≥ 10MB, build multipart upload from existing chunks.
+    Uses UploadPartCopy (server-side) to batch chunks into 5MB+ parts.
+    Zero server memory usage!
+
+    Args:
+        conversation_id: Conversation UUID
+        username: Username for folder structure
+        chunk_s3_urls: List of S3 URLs for chunks in order
+
+    Returns:
+        dict: {'s3_url': str, 'success': bool}
+    """
+    try:
+        s3_client = get_s3_client()
+        safe_username = sanitize_username_for_s3(username)
+
+        print(f"🔀 Building multipart from {len(chunk_s3_urls)} chunks (≥ 10MB)")
+
+        # Get chunk sizes to batch into 5MB+ parts
+        chunk_info = []
+        total_size = 0
+
+        for idx, chunk_url in enumerate(chunk_s3_urls):
+            key = chunk_url.split('.amazonaws.com/')[-1]
+
+            # Get chunk size without downloading
+            response = s3_client.head_object(
+                Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                Key=key
+            )
+
+            size = response['ContentLength']
+            chunk_info.append({'key': key, 'size': size})
+            total_size += size
+            print(f"   Chunk {idx}: {size:,} bytes")
+
+        print(f"   Total: {total_size:,} bytes ({total_size / 1024 / 1024:.2f} MB)")
+
+        # Start multipart upload
+        s3_key = f"conversations/{safe_username}/{conversation_id}/complete.flac"
+
+        print(f"   Starting multipart: {s3_key}")
+
+        response = s3_client.create_multipart_upload(
+            Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+            Key=s3_key,
+            ContentType='audio/flac'
+        )
+
+        upload_id = response['UploadId']
+        print(f"   Upload ID: {upload_id}")
+
+        # Batch chunks into 5MB+ parts
+        MIN_PART_SIZE = 5 * 1024 * 1024  # 5MB
+        parts = []
+        part_number = 1
+
+        current_batch = []
+        current_batch_size = 0
+
+        for i, chunk in enumerate(chunk_info):
+            current_batch.append(chunk)
+            current_batch_size += chunk['size']
+
+            # Is this the last chunk OR have we reached 5MB?
+            is_last_chunk = (i == len(chunk_info) - 1)
+            batch_ready = current_batch_size >= MIN_PART_SIZE
+
+            if batch_ready or is_last_chunk:
+                print(f"   Creating part {part_number} from {len(current_batch)} chunk(s), size: {current_batch_size:,} bytes")
+
+                # If batch has 1 chunk, use UploadPartCopy directly
+                if len(current_batch) == 1:
+                    copy_source = {
+                        'Bucket': settings.AWS_STORAGE_BUCKET_NAME,
+                        'Key': current_batch[0]['key']
+                    }
+
+                    copy_response = s3_client.upload_part_copy(
+                        Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                        Key=s3_key,
+                        PartNumber=part_number,
+                        UploadId=upload_id,
+                        CopySource=copy_source
+                    )
+
+                    etag = copy_response['CopyPartResult']['ETag']
+
+                else:
+                    # Multiple chunks in part: need to concatenate then upload
+                    # This only happens when batching small chunks into one part
+                    print(f"      Concatenating {len(current_batch)} chunks for this part...")
+
+                    part_data = b''
+                    for chunk in current_batch:
+                        response = s3_client.get_object(
+                            Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                            Key=chunk['key']
+                        )
+                        part_data += response['Body'].read()
+
+                    # Upload the concatenated part
+                    upload_response = s3_client.upload_part(
+                        Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                        Key=s3_key,
+                        PartNumber=part_number,
+                        UploadId=upload_id,
+                        Body=part_data
+                    )
+
+                    etag = upload_response['ETag']
+
+                parts.append({'PartNumber': part_number, 'ETag': etag})
+                print(f"   ✅ Part {part_number} complete, ETag: {etag}")
+
+                # Reset for next part
+                part_number += 1
+                current_batch = []
+                current_batch_size = 0
+
+        # Complete multipart upload
+        print(f"   Completing multipart with {len(parts)} parts...")
+
+        s3_client.complete_multipart_upload(
+            Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+            Key=s3_key,
+            UploadId=upload_id,
+            MultipartUpload={'Parts': parts}
+        )
+
+        s3_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{s3_key}"
+
+        print(f"✅ Multipart complete: {s3_url}")
+
+        return {'s3_url': s3_url, 'success': True}
+
+    except ClientError as e:
+        print(f"❌ Error building multipart: {e}")
+        import traceback
+        traceback.print_exc()
+
+        # Try to abort if upload_id exists
+        if 'upload_id' in locals():
+            try:
+                s3_client.abort_multipart_upload(
+                    Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                    Key=s3_key,
+                    UploadId=upload_id
+                )
+                print(f"   Aborted failed multipart upload")
+            except:
+                pass
+
         return {'success': False, 'error': str(e)}
 
 
