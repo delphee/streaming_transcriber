@@ -135,18 +135,18 @@ def conversation_detail(request, conversation_id):
     # Get speakers
     speakers = conversation.speakers.all()
 
-    # Get transcript segments (limit to 1000 for performance)
-    segments = conversation.segments.select_related('speaker').order_by('start_time')[:1000]
-
-    # Group segments by speaker for statistics
+    # Calculate speaker stats BEFORE slicing (using full queryset)
     speaker_stats = {}
     for speaker in speakers:
-        speaker_segments = segments.filter(speaker=speaker)
+        speaker_segments = conversation.segments.filter(speaker=speaker)
         speaker_stats[speaker.id] = {
             'speaker': speaker,
             'segment_count': speaker_segments.count(),
             'total_words': sum(len(s.text.split()) for s in speaker_segments)
         }
+
+    # NOW slice segments for display (after stats are calculated)
+    segments = conversation.segments.select_related('speaker').order_by('start_time')[:1000]
 
     context = {
         'conversation': conversation,
