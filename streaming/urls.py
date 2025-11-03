@@ -20,7 +20,7 @@ urlpatterns = [
     path('api/auth/logout/', auth_views.ios_logout, name='ios_logout'),
 
     # Dashboard & Main Views
-    #path('', views.dashboard, name='dashboard'),
+    path('', views.dashboard, name='chunking:dashboard'),
     #path('conversations/', views.conversation_list, name='conversation_list'),
     #path('conversations/<str:conversation_id>/', views.conversation_detail, name='conversation_detail'),
 
