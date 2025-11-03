@@ -180,14 +180,25 @@ def user_create(request):
             is_staff=is_staff
         )
 
-        # Create profile
+        # Create profile with all settings
         profile = UserProfile.objects.create(user=user)
+
+        # Feature flags
+        profile.enable_real_time_coaching = request.POST.get('enable_real_time_coaching') == 'on'
+        profile.enable_talking_points_monitoring = request.POST.get('enable_talking_points_monitoring') == 'on'
+        profile.enable_sentiment_alerts = request.POST.get('enable_sentiment_alerts') == 'on'
+        profile.enable_speaker_identification = request.POST.get('enable_speaker_identification') == 'on'
+
+        # Alert settings
+        profile.alert_email = request.POST.get('alert_email', '').strip()
+        profile.alert_on_heated_conversation = request.POST.get('alert_on_heated_conversation') == 'on'
 
         # Assign prompt if selected
         assigned_prompt_id = request.POST.get('assigned_prompt')
         if assigned_prompt_id:
             profile.assigned_prompt_id = assigned_prompt_id
-            profile.save()
+
+        profile.save()
 
         messages.success(request, f'User {user.username} created successfully')
         return redirect('user_management')
