@@ -22,7 +22,7 @@ urlpatterns = [
     # Dashboard & Main Views
     path('', views.dashboard, name='dashboard'),
     #path('conversations/', views.conversation_list, name='conversation_list'),
-    path('conversations/<str:conversation_id>/', views.conversation_detail, name='conversation_detail'),
+    #path('conversations/<str:conversation_id>/', views.conversation_detail, name='conversation_detail'),
 
     # User Management (Admin only)
     path('users/', views.user_management, name='user_management'),
