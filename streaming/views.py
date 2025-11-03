@@ -192,6 +192,7 @@ def user_create(request):
         # Alert settings
         profile.alert_email = request.POST.get('alert_email', '').strip()
         profile.alert_on_heated_conversation = request.POST.get('alert_on_heated_conversation') == 'on'
+        profile.auto_share = request.POST.get('auto_share') == 'on'
 
         # Assign prompt if selected
         assigned_prompt_id = request.POST.get('assigned_prompt')
@@ -240,6 +241,7 @@ def user_edit(request, user_id):
         profile.enable_speaker_identification = request.POST.get('enable_speaker_identification') == 'on'
         profile.alert_on_heated_conversation = request.POST.get('alert_on_heated_conversation') == 'on'
         profile.alert_email = request.POST.get('alert_email', '').strip()
+        profile.auto_share = request.POST.get('auto_share') == 'on'
         assigned_prompt_id = request.POST.get('assigned_prompt')
         if assigned_prompt_id:
             profile.assigned_prompt_id = assigned_prompt_id

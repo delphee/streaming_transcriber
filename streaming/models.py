@@ -185,6 +185,8 @@ class UserProfile(models.Model):
     alert_email = models.EmailField(blank=True)
     alert_on_heated_conversation = models.BooleanField(default=False)
 
+    auto_share = models.BooleanField(default=False, help_text="Automatically share all conversations with admin")
+
     # Analysis templates assigned to this user
     default_analysis_type = models.CharField(max_length=100, blank=True)
 
