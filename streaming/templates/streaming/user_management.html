@@ -1,310 +1,217 @@
-{% extends 'streaming/base.html' %}
-{% load tz %}
-{% block title %}User Management - Conversation Intelligence Platform{% endblock %}
+{% extends 'chunking/base.html' %}
 
-{% block extra_css %}
-<style>
-    .page-header {
-        background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
-        color: white;
-        padding: 2rem;
-        border-radius: 8px;
-        margin-bottom: 2rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
-    .page-header h1 {
-        margin: 0;
-        font-weight: 600;
-        font-size: 1.8rem;
-    }
-    
-    .user-card {
-        background: white;
-        border-radius: 8px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        margin-bottom: 1rem;
-        transition: all 0.3s;
-        border-left: 4px solid var(--primary-color);
-    }
-    
-    .user-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-    }
-    
-    .user-card.staff {
-        border-left-color: var(--success-color);
-    }
-    
-    .user-card.inactive {
-        border-left-color: var(--secondary-color);
-        opacity: 0.7;
-    }
-    
-    .user-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: start;
-        margin-bottom: 1rem;
-    }
-    
-    .user-name {
-        font-size: 1.2rem;
-        font-weight: 600;
-        color: #333;
-        margin: 0;
-    }
-    
-    .user-username {
-        color: var(--secondary-color);
-        font-size: 0.9rem;
-        margin-top: 0.25rem;
-    }
-    
-    .user-badges {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-    }
-    
-    .user-info {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1rem;
-        padding: 1rem 0;
-        border-top: 1px solid var(--light-bg);
-        border-bottom: 1px solid var(--light-bg);
-        margin: 1rem 0;
-    }
-    
-    .info-item {
-        display: flex;
-        align-items: center;
-        color: var(--secondary-color);
-        font-size: 0.9rem;
-    }
-    
-    .info-item i {
-        margin-right: 0.5rem;
-        color: var(--primary-color);
-        font-size: 1.1rem;
-    }
-    
-    .feature-flags {
-        display: flex;
-        gap: 0.5rem;
-        flex-wrap: wrap;
-        margin-top: 0.75rem;
-    }
-    
-    .feature-badge {
-        padding: 0.3rem 0.7rem;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 500;
-        background: var(--light-bg);
-        color: var(--secondary-color);
-    }
-    
-    .feature-badge.enabled {
-        background: rgba(46, 125, 50, 0.1);
-        color: var(--success-color);
-    }
-    
-    .user-actions {
-        display: flex;
-        gap: 0.5rem;
-    }
-    
-    .empty-state {
-        background: white;
-        padding: 4rem 2rem;
-        border-radius: 8px;
-        text-align: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-    
-    .empty-state i {
-        font-size: 5rem;
-        color: var(--light-bg);
-        margin-bottom: 1rem;
-    }
-    
-    .stats-row {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-bottom: 2rem;
-    }
-    
-    .stat-box {
-        background: white;
-        padding: 1.25rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        border-left: 4px solid var(--primary-color);
-    }
-    
-    .stat-value {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: var(--primary-color);
-        margin-bottom: 0.25rem;
-    }
-    
-    .stat-label {
-        font-size: 0.85rem;
-        color: var(--secondary-color);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-</style>
-{% endblock %}
+{% block title %}User Management{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
-<div class="page-header">
-    <div>
-        <h1><i class="bi bi-people-fill me-2"></i>User Management</h1>
-        <p class="mb-0 mt-2" style="opacity: 0.9;">Manage user accounts and permissions</p>
-    </div>
-    <div>
-        <a href="{% url 'user_create' %}" class="btn btn-light btn-lg">
-            <i class="bi bi-person-plus me-2"></i>Create New User
+<div class="mb-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">User Management</h1>
+            <p class="mt-2 text-sm text-gray-600">Manage user accounts and permissions</p>
+        </div>
+        <a href="{% url 'user_create' %}" 
+           class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+            <svg class="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z"/>
+            </svg>
+            Create New User
         </a>
     </div>
 </div>
 
 <!-- Statistics -->
-<div class="stats-row">
-    <div class="stat-box">
-        <div class="stat-value">{{ users|length }}</div>
-        <div class="stat-label">Total Users</div>
-    </div>
-    
-    <div class="stat-box">
-        <div class="stat-value">{{ users|length|add:"-1" }}</div>
-        <div class="stat-label">Active Users</div>
-    </div>
-    
-    <div class="stat-box">
-        <div class="stat-value">
-            {% for user in users %}{% if user.is_staff %}1{% endif %}{% endfor %}
+<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+    <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="text-3xl">👥</div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">Total Users</dt>
+                        <dd class="text-3xl font-semibold text-gray-900">{{ users|length }}</dd>
+                    </dl>
+                </div>
+            </div>
         </div>
-        <div class="stat-label">Admin Users</div>
     </div>
     
-    <div class="stat-box">
-        <div class="stat-value">
-            {% for user in users %}{% if user.profile.enable_real_time_coaching %}1{% endif %}{% endfor %}
+    <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="text-3xl">✅</div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">Active Users</dt>
+                        <dd class="text-3xl font-semibold text-gray-900">
+                            {% for user_item in users %}{% if user_item.is_active %}{{ forloop.counter }}{% endif %}{% endfor %}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
         </div>
-        <div class="stat-label">Coaching Enabled</div>
+    </div>
+    
+    <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="text-3xl">🛡️</div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">Admins</dt>
+                        <dd class="text-3xl font-semibold text-gray-900">
+                            {% for user_item in users %}{% if user_item.is_staff %}{{ forloop.counter }}{% endif %}{% endfor %}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="text-3xl">🎯</div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">Coaching Enabled</dt>
+                        <dd class="text-3xl font-semibold text-gray-900">
+                            {% for user_item in users %}{% if user_item.profile.enable_real_time_coaching %}{{ forloop.counter }}{% endif %}{% endfor %}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- Users List -->
 {% if users %}
+<div class="space-y-4">
     {% for user_item in users %}
-    <div class="user-card {% if user_item.is_staff %}staff{% endif %} {% if not user_item.is_active %}inactive{% endif %}">
-        <div class="user-header">
-            <div>
-                <h3 class="user-name">
-                    <i class="bi bi-person-circle me-2"></i>
-                    {% if user_item.get_full_name %}
-                        {{ user_item.get_full_name }}
-                    {% else %}
-                        {{ user_item.username }}
-                    {% endif %}
-                </h3>
-                <div class="user-username">@{{ user_item.username }}</div>
-            </div>
-            
-            <div class="user-badges">
-                {% if user_item.is_staff %}
-                    <span class="badge bg-success">
-                        <i class="bi bi-shield-check"></i> Admin
-                    </span>
-                {% endif %}
+    <div class="bg-white shadow-sm rounded-lg border-l-4 {% if user_item.is_staff %}border-green-500{% elif not user_item.is_active %}border-gray-400{% else %}border-indigo-500{% endif %} overflow-hidden hover:shadow-md transition duration-150">
+        <div class="p-6">
+            <!-- Header -->
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-3">
+                        <h3 class="text-lg font-semibold text-gray-900">
+                            {% if user_item.get_full_name %}
+                                {{ user_item.get_full_name }}
+                            {% else %}
+                                {{ user_item.username }}
+                            {% endif %}
+                        </h3>
+                        
+                        {% if user_item.is_staff %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            🛡️ Admin
+                        </span>
+                        {% endif %}
+                        
+                        {% if user_item.is_active %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            ✓ Active
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            ○ Inactive
+                        </span>
+                        {% endif %}
+                    </div>
+                    <p class="text-sm text-gray-600 mt-1">@{{ user_item.username }}</p>
+                </div>
                 
-                {% if user_item.is_active %}
-                    <span class="badge bg-primary">
-                        <i class="bi bi-check-circle"></i> Active
-                    </span>
-                {% else %}
-                    <span class="badge bg-secondary">
-                        <i class="bi bi-x-circle"></i> Inactive
-                    </span>
+                <div class="flex space-x-2">
+                    <a href="{% url 'user_edit' user_item.id %}" 
+                       class="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                        ✏️ Edit
+                    </a>
+                    {% if user_item.id != user.id %}
+                    <a href="{% url 'user_delete' user_item.id %}" 
+                       class="inline-flex items-center px-3 py-1.5 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-white hover:bg-red-50">
+                        🗑️ Delete
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Info Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 py-4 border-t border-b border-gray-200">
+                <div class="flex items-center text-sm text-gray-600">
+                    <svg class="mr-2 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                    </svg>
+                    {{ user_item.email }}
+                </div>
+                
+                <div class="flex items-center text-sm text-gray-600">
+                    <svg class="mr-2 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                    </svg>
+                    Joined {{ user_item.date_joined|date:"M d, Y" }}
+                </div>
+                
+                <div class="flex items-center text-sm text-gray-600">
+                    <svg class="mr-2 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
+                    </svg>
+                    {{ user_item.conversations.count }} conversation{{ user_item.conversations.count|pluralize }}
+                </div>
+                
+                <div class="flex items-center text-sm text-gray-600">
+                    <svg class="mr-2 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                    </svg>
+                    Last: {% if user_item.last_login %}{{ user_item.last_login|date:"M d, Y" }}{% else %}Never{% endif %}
+                </div>
+            </div>
+            
+            <!-- Feature Flags -->
+            <div class="mt-4 flex flex-wrap gap-2">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium {% if user_item.profile.enable_real_time_coaching %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-600{% endif %}">
+                    📢 Real-time Coaching
+                </span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium {% if user_item.profile.enable_talking_points_monitoring %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-600{% endif %}">
+                    📋 Talking Points
+                </span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium {% if user_item.profile.enable_sentiment_alerts %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-600{% endif %}">
+                    😊 Sentiment Alerts
+                </span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium {% if user_item.profile.enable_speaker_identification %}bg-green-100 text-green-800{% else %}bg-gray-100 text-gray-600{% endif %}">
+                    🎤 Speaker ID
+                </span>
+                
+                {% if user_item.profile.assigned_prompt %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                    📝 {{ user_item.profile.assigned_prompt.name }}
+                </span>
                 {% endif %}
             </div>
-        </div>
-        
-        <div class="user-info">
-            <div class="info-item">
-                <i class="bi bi-envelope"></i>
-                <span>{{ user_item.email }}</span>
-            </div>
-            
-            <div class="info-item">
-                <i class="bi bi-calendar3"></i>
-                <span>Joined {{ user_item.date_joined|localtime|date:"M d, Y" }}</span>
-            </div>
-            
-            <div class="info-item">
-                <i class="bi bi-chat-left-text"></i>
-                <span>{{ user_item.conversations.count }} conversation{{ user_item.conversations.count|pluralize }}</span>
-            </div>
-            
-            <div class="info-item">
-                <i class="bi bi-clock-history"></i>
-                <span>Last login: {% if user_item.last_login %}{{ user_item.last_login|localtime|date:"M d, Y" }}{% else %}Never{% endif %}</span>
-            </div>
-        </div>
-        
-        <!-- Feature Flags -->
-        <div class="feature-flags">
-            <span class="feature-badge {% if user_item.profile.enable_real_time_coaching %}enabled{% endif %}">
-                <i class="bi bi-megaphone{% if user_item.profile.enable_real_time_coaching %}-fill{% endif %}"></i>
-                Real-time Coaching
-            </span>
-            <span class="feature-badge {% if user_item.profile.enable_talking_points_monitoring %}enabled{% endif %}">
-                <i class="bi bi-list-check"></i>
-                Talking Points
-            </span>
-            <span class="feature-badge {% if user_item.profile.enable_sentiment_alerts %}enabled{% endif %}">
-                <i class="bi bi-emoji-smile{% if user_item.profile.enable_sentiment_alerts %}-fill{% endif %}"></i>
-                Sentiment Alerts
-            </span>
-            <span class="feature-badge {% if user_item.profile.enable_speaker_identification %}enabled{% endif %}">
-                <i class="bi bi-person-badge{% if user_item.profile.enable_speaker_identification %}-fill{% endif %}"></i>
-                Speaker ID
-            </span>
-        </div>
-        
-        <div class="user-actions mt-3">
-            <a href="{% url 'user_edit' user_item.id %}" class="btn btn-outline-primary btn-sm">
-                <i class="bi bi-pencil me-1"></i> Edit
-            </a>
-            
-            {% if user_item.id != user.id %}
-            <a href="{% url 'user_delete' user_item.id %}" class="btn btn-outline-danger btn-sm">
-                <i class="bi bi-trash me-1"></i> Delete
-            </a>
-            {% endif %}
         </div>
     </div>
     {% endfor %}
+</div>
 {% else %}
-    <div class="empty-state">
-        <i class="bi bi-people"></i>
-        <h3>No users found</h3>
-        <p class="text-muted">Create your first user to get started</p>
-        <a href="{% url 'user_create' %}" class="btn btn-primary mt-3">
-            <i class="bi bi-person-plus me-1"></i> Create User
-        </a>
-    </div>
+<div class="bg-white shadow-sm rounded-lg border border-gray-200 p-12 text-center">
+    <svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+    </svg>
+    <h3 class="mt-4 text-lg font-medium text-gray-900">No users found</h3>
+    <p class="mt-2 text-sm text-gray-500">Create your first user to get started</p>
+    <a href="{% url 'user_create' %}" 
+       class="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+        Create User
+    </a>
+</div>
 {% endif %}
 {% endblock %}

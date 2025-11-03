@@ -1,55 +1,124 @@
-{% extends 'streaming/base.html' %}
-{% block title %}Create Prompt - Conversation Intelligence Platform{% endblock %}
+{% extends 'chunking/base.html' %}
+
+{% block title %}Create New Prompt{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-4">Create New Analysis Prompt</h2>
+<!-- Page Header -->
+<div class="mb-8">
+    <nav class="flex text-sm text-gray-500 mb-2">
+        <a href="{% url 'prompt_management' %}" class="hover:text-gray-700">Prompt Management</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-900">Create New Prompt</span>
+    </nav>
+    <h1 class="text-3xl font-bold text-gray-900">Create New Analysis Prompt</h1>
+    <p class="mt-2 text-sm text-gray-600">Write what you want to analyze in plain English - AI will optimize it</p>
+</div>
 
-    {% if messages %}
-        {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<!-- Info Alert -->
+<div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-r-md">
+    <div class="flex">
+        <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+            </svg>
         </div>
-        {% endfor %}
-    {% endif %}
-
-    <div class="card">
-        <div class="card-body">
-            <form method="post">
-                {% csrf_token %}
-                
-                <div class="mb-3">
-                    <label for="name" class="form-label">Prompt Name *</label>
-                    <input type="text" class="form-control" id="name" name="name" required 
-                           placeholder="e.g., Sales Call Quality Check">
-                    <small class="form-text text-muted">Give this prompt a descriptive name</small>
-                </div>
-
-                <div class="mb-3">
-                    <label for="description" class="form-label">Description (optional)</label>
-                    <input type="text" class="form-control" id="description" name="description"
-                           placeholder="e.g., Analyzes sales calls for quality and compliance">
-                    <small class="form-text text-muted">What is this prompt used for?</small>
-                </div>
-
-                <div class="mb-3">
-                    <label for="plain_text" class="form-label">What do you want to analyze? *</label>
-                    <textarea class="form-control" id="plain_text" name="plain_text" rows="6" required
-                              placeholder="Write in plain English what you want the AI to analyze. Example: 'I want to know if the sales rep mentioned our warranty and if the customer seemed interested in it'"></textarea>
-                    <small class="form-text text-muted">
-                        Write in plain English - AI will optimize it into a professional prompt
-                    </small>
-                </div>
-
-                <div class="d-flex justify-content-between">
-                    <a href="{% url 'prompt_management' %}" class="btn btn-outline-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-magic me-1"></i>Optimize with AI
-                    </button>
-                </div>
-            </form>
+        <div class="ml-3">
+            <p class="text-sm text-blue-700">
+                Describe what you want the AI to analyze in simple language. Our AI will transform it into a professional, optimized prompt for the best results.
+            </p>
         </div>
     </div>
 </div>
+
+<!-- Create Form -->
+<form method="POST" action="{% url 'prompt_create' %}" class="space-y-6">
+    {% csrf_token %}
+    
+    <div class="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">Prompt Details</h2>
+        </div>
+        
+        <div class="px-6 py-6 space-y-6">
+            <!-- Name -->
+            <div>
+                <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
+                    Prompt Name <span class="text-red-600">*</span>
+                </label>
+                <input 
+                    type="text" 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" 
+                    id="name" 
+                    name="name" 
+                    required 
+                    placeholder="e.g., Sales Call Quality Check"
+                >
+                <p class="mt-1 text-xs text-gray-500">Give this prompt a descriptive name</p>
+            </div>
+            
+            <!-- Description -->
+            <div>
+                <label for="description" class="block text-sm font-medium text-gray-700 mb-2">
+                    Description <span class="text-gray-500">(optional)</span>
+                </label>
+                <input 
+                    type="text" 
+                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" 
+                    id="description" 
+                    name="description"
+                    placeholder="e.g., Analyzes sales calls for quality and compliance"
+                >
+                <p class="mt-1 text-xs text-gray-500">What is this prompt used for?</p>
+            </div>
+            
+            <!-- Plain Text -->
+            <div>
+                <label for="plain_text" class="block text-sm font-medium text-gray-700 mb-2">
+                    What do you want to analyze? <span class="text-red-600">*</span>
+                </label>
+                <textarea 
+                    class="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm" 
+                    id="plain_text" 
+                    name="plain_text" 
+                    rows="8" 
+                    required
+                    placeholder="Write in plain English what you want the AI to analyze. Example: 'I want to know if the sales rep mentioned our warranty and if the customer seemed interested in it'"
+                ></textarea>
+                <p class="mt-1 text-xs text-gray-500">
+                    Write naturally - our AI will transform this into a professional prompt
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Example Card -->
+    <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200 p-6">
+        <h3 class="text-sm font-semibold text-purple-900 mb-3 flex items-center">
+            <svg class="mr-2 h-5 w-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+            </svg>
+            Example Prompts
+        </h3>
+        <div class="space-y-2 text-sm text-purple-800">
+            <p><strong>Sales:</strong> "Check if the rep built rapport, addressed objections, and closed with clear next steps"</p>
+            <p><strong>Support:</strong> "Did the agent show empathy, solve the problem efficiently, and confirm customer satisfaction?"</p>
+            <p><strong>Medical:</strong> "Verify the doctor explained the diagnosis clearly, answered all questions, and discussed treatment options"</p>
+        </div>
+    </div>
+    
+    <!-- Form Actions -->
+    <div class="flex space-x-3 pt-6 border-t border-gray-200">
+        <button type="submit" 
+                class="inline-flex items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <svg class="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/>
+            </svg>
+            Optimize with AI
+        </button>
+        <a href="{% url 'prompt_management' %}" 
+           class="inline-flex items-center px-6 py-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            Cancel
+        </a>
+    </div>
+</form>
 {% endblock %}

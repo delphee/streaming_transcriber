@@ -1,47 +1,133 @@
-{% extends 'streaming/base.html' %}
-{% block title %}Optimize Prompt - Conversation Intelligence Platform{% endblock %}
+{% extends 'chunking/base.html' %}
+
+{% block title %}Review AI-Optimized Prompt{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-4">Review AI-Optimized Prompt</h2>
-
-    <div class="alert alert-info">
-        <i class="bi bi-info-circle me-2"></i>
-        AI has optimized your prompt. You can edit it below before saving.
-    </div>
-
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">Your Original Text</h5>
-        </div>
-        <div class="card-body">
-            <p class="mb-0">{{ prompt_data.plain_text }}</p>
-        </div>
-    </div>
-
-    <form method="post">
-        {% csrf_token %}
-        
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">AI-Optimized Prompt</h5>
-            </div>
-            <div class="card-body">
-                <textarea class="form-control" name="optimized_prompt" rows="12" required>{{ optimized_prompt }}</textarea>
-                <small class="form-text text-muted mt-2 d-block">
-                    You can edit this optimized version before saving
-                </small>
-            </div>
-        </div>
-
-        <div class="d-flex justify-content-between">
-            <a href="{% url 'prompt_create' %}" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left me-1"></i>Back
-            </a>
-            <button type="submit" class="btn btn-success">
-                <i class="bi bi-check-circle me-1"></i>Save Prompt
-            </button>
-        </div>
-    </form>
+<!-- Page Header -->
+<div class="mb-8">
+    <nav class="flex text-sm text-gray-500 mb-2">
+        <a href="{% url 'prompt_management' %}" class="hover:text-gray-700">Prompt Management</a>
+        <span class="mx-2">/</span>
+        <a href="{% url 'prompt_create' %}" class="hover:text-gray-700">Create Prompt</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-900">Review & Optimize</span>
+    </nav>
+    <h1 class="text-3xl font-bold text-gray-900">Review AI-Optimized Prompt</h1>
+    <p class="mt-2 text-sm text-gray-600">Review and edit the AI-optimized prompt before saving</p>
 </div>
+
+<!-- Success Alert -->
+<div class="bg-green-50 border-l-4 border-green-400 p-4 mb-6 rounded-r-md">
+    <div class="flex">
+        <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+            </svg>
+        </div>
+        <div class="ml-3">
+            <p class="text-sm text-green-700">
+                <strong>AI optimization complete!</strong> Your prompt has been professionally structured for optimal results. You can edit it below before saving.
+            </p>
+        </div>
+    </div>
+</div>
+
+<form method="POST" action="{% url 'prompt_optimize' %}" class="space-y-6">
+    {% csrf_token %}
+    
+    <!-- Original Text Card -->
+    <div class="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                <svg class="mr-2 h-5 w-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                </svg>
+                Your Original Text
+            </h2>
+        </div>
+        
+        <div class="px-6 py-6">
+            <p class="text-sm text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-md border border-gray-200">
+                {{ prompt_data.plain_text }}
+            </p>
+        </div>
+    </div>
+    
+    <!-- Optimized Prompt Card -->
+    <div class="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 bg-gradient-to-r from-green-50 to-emerald-50 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900 flex items-center">
+                <svg class="mr-2 h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/>
+                </svg>
+                AI-Optimized Prompt
+            </h2>
+        </div>
+        
+        <div class="px-6 py-6">
+            <label for="optimized_prompt" class="block text-sm font-medium text-gray-700 mb-2">
+                Edit the optimized prompt if needed:
+            </label>
+            <textarea 
+                class="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500 font-mono text-sm" 
+                name="optimized_prompt" 
+                id="optimized_prompt"
+                rows="16" 
+                required
+            >{{ optimized_prompt }}</textarea>
+            <p class="mt-2 text-xs text-gray-500">
+                This professionally-structured prompt will be used for AI analysis. Feel free to make adjustments.
+            </p>
+        </div>
+    </div>
+    
+    <!-- Comparison Info -->
+    <div class="bg-purple-50 rounded-lg border border-purple-200 p-6">
+        <h3 class="text-sm font-semibold text-purple-900 mb-3 flex items-center">
+            <svg class="mr-2 h-5 w-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+            </svg>
+            What Changed?
+        </h3>
+        <ul class="space-y-2 text-sm text-purple-800">
+            <li class="flex items-start">
+                <svg class="mr-2 h-5 w-5 text-purple-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                <span><strong>Structured format:</strong> Organized into clear sections and objectives</span>
+            </li>
+            <li class="flex items-start">
+                <svg class="mr-2 h-5 w-5 text-purple-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                <span><strong>Precise instructions:</strong> Clear guidance for the AI to follow</span>
+            </li>
+            <li class="flex items-start">
+                <svg class="mr-2 h-5 w-5 text-purple-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                <span><strong>Better results:</strong> Optimized phrasing produces more consistent, actionable insights</span>
+            </li>
+        </ul>
+    </div>
+    
+    <!-- Form Actions -->
+    <div class="flex space-x-3 pt-6 border-t border-gray-200">
+        <button type="submit" 
+                class="inline-flex items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+            <svg class="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+            </svg>
+            Save Prompt
+        </button>
+        <a href="{% url 'prompt_create' %}" 
+           class="inline-flex items-center px-6 py-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <svg class="mr-2 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l2.293 2.293a1 1 0 010 1.414z" clip-rule="evenodd"/>
+            </svg>
+            Back
+        </a>
+    </div>
+</form>
 {% endblock %}

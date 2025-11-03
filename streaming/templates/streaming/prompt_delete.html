@@ -1,44 +1,206 @@
-{% extends 'streaming/base.html' %}
-{% block title %}Delete Prompt - Conversation Intelligence Platform{% endblock %}
+{% extends 'chunking/base.html' %}
+
+{% block title %}Delete User - {{ user_to_delete.username }}{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-4">Delete Prompt</h2>
-
-    <div class="alert alert-warning">
-        <i class="bi bi-exclamation-triangle me-2"></i>
-        <strong>Are you sure you want to delete this prompt?</strong>
+<!-- Page Header -->
+<div class="mb-8">
+    <nav class="flex text-sm text-gray-500 mb-2">
+        <a href="{% url 'user_management' %}" class="hover:text-gray-700">User Management</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-900">Delete User</span>
+    </nav>
+    <div class="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-6 text-white">
+        <h1 class="text-3xl font-bold flex items-center">
+            <svg class="mr-3 h-8 w-8" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+            </svg>
+            Delete User
+        </h1>
+        <p class="mt-2 text-red-100">This action cannot be undone. Please review carefully before proceeding.</p>
     </div>
+</div>
 
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">{{ prompt.name }}</h5>
+<!-- Warning Card -->
+<div class="bg-white shadow-sm rounded-lg border-l-4 border-red-600 overflow-hidden mb-6">
+    <div class="px-6 py-6">
+        <div class="flex items-start mb-6">
+            <div class="flex-shrink-0">
+                <div class="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center">
+                    <svg class="h-8 w-8 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+            </div>
+            <div class="ml-5 flex-1">
+                <h2 class="text-xl font-bold text-red-900">Permanent Deletion Warning</h2>
+                <p class="mt-1 text-sm text-red-700">You are about to permanently delete this user account</p>
+            </div>
         </div>
-        <div class="card-body">
-            {% if prompt.description %}
-                <p><strong>Description:</strong> {{ prompt.description }}</p>
+        
+        <!-- User Details -->
+        <div class="bg-gray-50 rounded-lg p-6 mb-6">
+            <h3 class="text-base font-semibold text-gray-900 mb-4 flex items-center">
+                <svg class="mr-2 h-5 w-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+                </svg>
+                User Information
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="flex items-center text-sm">
+                    <svg class="mr-2 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/>
+                    </svg>
+                    <span class="text-gray-600"><strong class="text-gray-900">Username:</strong> {{ user_to_delete.username }}</span>
+                </div>
+                
+                <div class="flex items-center text-sm">
+                    <svg class="mr-2 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                    </svg>
+                    <span class="text-gray-600"><strong class="text-gray-900">Email:</strong> {{ user_to_delete.email }}</span>
+                </div>
+                
+                <div class="flex items-center text-sm">
+                    <svg class="mr-2 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+                    </svg>
+                    <span class="text-gray-600"><strong class="text-gray-900">Name:</strong> {{ user_to_delete.get_full_name|default:"Not provided" }}</span>
+                </div>
+                
+                <div class="flex items-center text-sm">
+                    <svg class="mr-2 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                    </svg>
+                    <span class="text-gray-600"><strong class="text-gray-900">Joined:</strong> {{ user_to_delete.date_joined|date:"M d, Y" }}</span>
+                </div>
+                
+                <div class="flex items-center text-sm">
+                    <svg class="mr-2 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    <span class="text-gray-600"><strong class="text-gray-900">Role:</strong> {% if user_to_delete.is_staff %}Administrator{% else %}User{% endif %}</span>
+                </div>
+                
+                <div class="flex items-center text-sm">
+                    <svg class="mr-2 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    <span class="text-gray-600"><strong class="text-gray-900">Status:</strong> {% if user_to_delete.is_active %}Active{% else %}Inactive{% endif %}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Impact Assessment -->
+        <div class="mb-6">
+            <h3 class="text-base font-semibold text-gray-900 mb-4 flex items-center">
+                <svg class="mr-2 h-5 w-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                Impact Assessment
+            </h3>
+            
+            {% if user_to_delete.conversations.count > 0 %}
+            <div class="space-y-3">
+                <div class="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-r">
+                    <div class="flex items-start">
+                        <svg class="h-5 w-5 text-orange-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
+                        </svg>
+                        <p class="ml-3 text-sm text-orange-800">
+                            <strong>{{ user_to_delete.conversations.count }} conversation{{ user_to_delete.conversations.count|pluralize }}</strong> will remain in the system but will be marked as "deleted user"
+                        </p>
+                    </div>
+                </div>
+                
+                {% if user_to_delete.auth_tokens.count > 0 %}
+                <div class="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-r">
+                    <div class="flex items-start">
+                        <svg class="h-5 w-5 text-orange-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <p class="ml-3 text-sm text-orange-800">
+                            <strong>{{ user_to_delete.auth_tokens.count }} authentication token{{ user_to_delete.auth_tokens.count|pluralize }}</strong> will be invalidated immediately
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-r">
+                    <div class="flex items-start">
+                        <svg class="h-5 w-5 text-orange-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"/>
+                        </svg>
+                        <p class="ml-3 text-sm text-orange-800">
+                            User will be <strong>immediately logged out</strong> from all devices (web and iOS)
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-r">
+                    <div class="flex items-start">
+                        <svg class="h-5 w-5 text-orange-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd"/>
+                        </svg>
+                        <p class="ml-3 text-sm text-orange-800">
+                            User profile and settings will be <strong>permanently deleted</strong>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="bg-green-50 border-l-4 border-green-400 p-4 rounded-r">
+                <div class="flex items-start">
+                    <svg class="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
+                    <p class="ml-3 text-sm text-green-800">
+                        This user has no conversations. Deletion will have minimal impact.
+                    </p>
+                </div>
+            </div>
             {% endif %}
-            <p><strong>Plain Text:</strong> {{ prompt.plain_text }}</p>
-            <p class="mb-0">
-                <strong>Currently assigned to:</strong> 
-                {{ prompt.assigned_users.count }} user(s)
+        </div>
+        
+        <!-- Confirmation Box -->
+        <div class="bg-red-50 border-2 border-red-600 rounded-lg p-6">
+            <h3 class="text-base font-bold text-red-900 mb-3 flex items-center">
+                <svg class="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                Confirm Deletion
+            </h3>
+            <p class="text-sm text-red-800 leading-relaxed">
+                Are you absolutely sure you want to delete 
+                <strong>{{ user_to_delete.get_full_name|default:user_to_delete.username }}</strong> 
+                ({{ user_to_delete.email }})?
+                This action is <strong>irreversible</strong> and the user account cannot be recovered.
             </p>
         </div>
     </div>
-
-    <div class="alert alert-danger">
-        <i class="bi bi-info-circle me-2"></i>
-        This action cannot be undone. Users will no longer have this prompt assigned.
-    </div>
-
-    <form method="post">
-        {% csrf_token %}
-        <div class="d-flex justify-content-between">
-            <a href="{% url 'prompt_management' %}" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-danger">
-                <i class="bi bi-trash me-1"></i>Delete Prompt
-            </button>
-        </div>
-    </form>
 </div>
+
+<!-- Form Actions -->
+<form method="POST" action="{% url 'user_delete' user_to_delete.id %}" 
+      onsubmit="return confirm('FINAL CONFIRMATION: Are you absolutely certain you want to delete this user? This cannot be undone.');">
+    {% csrf_token %}
+    <div class="flex space-x-3">
+        <button type="submit" 
+                class="inline-flex items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+            <svg class="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+            </svg>
+            Yes, Permanently Delete User
+        </button>
+        <a href="{% url 'user_management' %}" 
+           class="inline-flex items-center px-6 py-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <svg class="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l2.293 2.293a1 1 0 010 1.414z" clip-rule="evenodd"/>
+            </svg>
+            Cancel - Keep User
+        </a>
+    </div>
+</form>
 {% endblock %}

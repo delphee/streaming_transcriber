@@ -1,70 +1,133 @@
-{% extends 'streaming/base.html' %}
-{% block title %}Assign Prompt - Conversation Intelligence Platform{% endblock %}
+{% extends 'chunking/base.html' %}
+
+{% block title %}Assign Prompt{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-4">Assign Prompt: {{ prompt.name }}</h2>
+<!-- Page Header -->
+<div class="mb-8">
+    <nav class="flex text-sm text-gray-500 mb-2">
+        <a href="{% url 'prompt_management' %}" class="hover:text-gray-700">Prompt Management</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-900">Assign Prompt</span>
+    </nav>
+    <h1 class="text-3xl font-bold text-gray-900">Assign Prompt: {{ prompt.name }}</h1>
+    <p class="mt-2 text-sm text-gray-600">Select which users should use this analysis prompt</p>
+</div>
 
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">Prompt Details</h5>
+<!-- Prompt Details Card -->
+<div class="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden mb-6">
+    <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Prompt Details</h2>
+    </div>
+    <div class="px-6 py-4">
+        {% if prompt.description %}
+        <div class="mb-3">
+            <span class="text-sm font-medium text-gray-700">Description:</span>
+            <p class="text-sm text-gray-600 mt-1">{{ prompt.description }}</p>
         </div>
-        <div class="card-body">
-            {% if prompt.description %}
-                <p><strong>Description:</strong> {{ prompt.description }}</p>
-            {% endif %}
-            <p class="mb-0"><strong>Plain Text:</strong> {{ prompt.plain_text|truncatewords:50 }}</p>
+        {% endif %}
+        <div>
+            <span class="text-sm font-medium text-gray-700">Plain Text:</span>
+            <p class="text-sm text-gray-600 mt-1">{{ prompt.plain_text|truncatewords:50 }}</p>
         </div>
     </div>
-
-    <form method="post">
-        {% csrf_token %}
-        
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Select Users</h5>
-            </div>
-            <div class="card-body">
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle me-2"></i>
-                    Each user can only have one prompt assigned at a time. Selecting a user will replace their current prompt.
-                </div>
-
-                {% if users %}
-                <div class="list-group">
-                    {% for user in users %}
-                    <label class="list-group-item">
-                        <div class="d-flex align-items-center">
-                            <input class="form-check-input me-3" type="checkbox" name="users" value="{{ user.id }}"
-                                   {% if user.profile.assigned_prompt.id == prompt.id %}checked{% endif %}>
-                            <div class="flex-grow-1">
-                                <strong>{{ user.get_full_name|default:user.username }}</strong>
-                                <br>
-                                <small class="text-muted">{{ user.email }}</small>
-                                {% if user.profile.assigned_prompt %}
-                                    <br>
-                                    <small class="text-warning">
-                                        <i class="bi bi-info-circle"></i>
-                                        Currently assigned: {{ user.profile.assigned_prompt.name }}
-                                    </small>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </label>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <p class="text-muted">No users available</p>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="d-flex justify-content-between mt-4">
-            <a href="{% url 'prompt_management' %}" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary">
-                <i class="bi bi-check-circle me-1"></i>Assign to Selected Users
-            </button>
-        </div>
-    </form>
 </div>
+
+<!-- Assignment Form -->
+<form method="POST" class="space-y-6">
+    {% csrf_token %}
+    
+    <!-- Info Alert -->
+    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-md">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                </svg>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm text-blue-700">
+                    Each user can only have one prompt assigned at a time. Selecting a user will replace their current prompt assignment.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- User Selection Card -->
+    <div class="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">Select Users</h2>
+        </div>
+        <div class="px-6 py-6">
+            {% if users %}
+            <div class="space-y-3">
+                {% for user in users %}
+                <label class="flex items-start p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                    <input 
+                        type="checkbox" 
+                        name="users" 
+                        value="{{ user.id }}"
+                        class="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        {% if user.profile.assigned_prompt.id == prompt.id %}checked{% endif %}
+                    >
+                    <div class="ml-3 flex-1">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-gray-900">
+                                {{ user.get_full_name|default:user.username }}
+                            </span>
+                            {% if user.is_staff %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                Admin
+                            </span>
+                            {% endif %}
+                        </div>
+                        <p class="text-sm text-gray-500 mt-1">{{ user.email }}</p>
+                        {% if user.profile.assigned_prompt %}
+                        <div class="mt-2 flex items-center text-xs">
+                            <svg class="h-4 w-4 text-amber-500 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                            </svg>
+                            <span class="text-amber-700">
+                                Currently assigned: <strong>{{ user.profile.assigned_prompt.name }}</strong>
+                            </span>
+                        </div>
+                        {% else %}
+                        <div class="mt-2 flex items-center text-xs text-gray-500">
+                            <svg class="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                            </svg>
+                            No prompt currently assigned
+                        </div>
+                        {% endif %}
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-12">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                </svg>
+                <h3 class="mt-2 text-sm font-medium text-gray-900">No users available</h3>
+                <p class="mt-1 text-sm text-gray-500">There are no users in the system to assign prompts to.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Form Actions -->
+    <div class="flex space-x-3 pt-6 border-t border-gray-200">
+        <button type="submit" 
+                class="inline-flex items-center px-6 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <svg class="mr-2 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+            Assign to Selected Users
+        </button>
+        <a href="{% url 'prompt_management' %}" 
+           class="inline-flex items-center px-6 py-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            Cancel
+        </a>
+    </div>
+</form>
 {% endblock %}
