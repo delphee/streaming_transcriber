@@ -31,7 +31,7 @@
                 <div class="ml-5 w-0 flex-1">
                     <dl>
                         <dt class="text-sm font-medium text-gray-500 truncate">Total Users</dt>
-                        <dd class="text-3xl font-semibold text-gray-900">{{ users|length }}</dd>
+                        <dd class="text-3xl font-semibold text-gray-900">{{ total_users }}</dd>
                     </dl>
                 </div>
             </div>
@@ -47,9 +47,7 @@
                 <div class="ml-5 w-0 flex-1">
                     <dl>
                         <dt class="text-sm font-medium text-gray-500 truncate">Active Users</dt>
-                        <dd class="text-3xl font-semibold text-gray-900">
-                            {% for user_item in users %}{% if user_item.is_active %}{{ forloop.counter }}{% endif %}{% endfor %}
-                        </dd>
+                        <dd class="text-3xl font-semibold text-gray-900">{{ active_users }}</dd>
                     </dl>
                 </div>
             </div>
@@ -65,9 +63,7 @@
                 <div class="ml-5 w-0 flex-1">
                     <dl>
                         <dt class="text-sm font-medium text-gray-500 truncate">Admins</dt>
-                        <dd class="text-3xl font-semibold text-gray-900">
-                            {% for user_item in users %}{% if user_item.is_staff %}{{ forloop.counter }}{% endif %}{% endfor %}
-                        </dd>
+                        <dd class="text-3xl font-semibold text-gray-900">{{ admin_users }}</dd>
                     </dl>
                 </div>
             </div>
@@ -83,9 +79,7 @@
                 <div class="ml-5 w-0 flex-1">
                     <dl>
                         <dt class="text-sm font-medium text-gray-500 truncate">Coaching Enabled</dt>
-                        <dd class="text-3xl font-semibold text-gray-900">
-                            {% for user_item in users %}{% if user_item.profile.enable_real_time_coaching %}{{ forloop.counter }}{% endif %}{% endfor %}
-                        </dd>
+                        <dd class="text-3xl font-semibold text-gray-900">{{ coaching_enabled }}</dd>
                     </dl>
                 </div>
             </div>

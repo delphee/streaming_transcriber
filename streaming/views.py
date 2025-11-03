@@ -132,8 +132,18 @@ def user_management(request):
     """Admin view to manage users"""
     users = User.objects.all().select_related('profile').order_by('-date_joined')
 
+    # Calculate statistics
+    total_users = users.count()
+    active_users = users.filter(is_active=True).count()
+    admin_users = users.filter(is_staff=True).count()
+    coaching_enabled = users.filter(profile__enable_real_time_coaching=True).count()
+
     context = {
         'users': users,
+        'total_users': total_users,
+        'active_users': active_users,
+        'admin_users': admin_users,
+        'coaching_enabled': coaching_enabled,
     }
 
     return render(request, 'streaming/user_management.html', context)
