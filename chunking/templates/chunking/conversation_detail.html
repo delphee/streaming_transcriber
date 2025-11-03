@@ -80,12 +80,10 @@
                     <p class="text-xs text-indigo-600">Recording User</p>
                     {% endif %}
                 </div>
-                {% if speaker.id in speaker_stats %}
                 <div class="text-right">
-                    <p class="text-xs text-gray-500">{{ speaker_stats|get_item:speaker.id|get_item:'segment_count' }} segments</p>
-                    <p class="text-xs text-gray-500">{{ speaker_stats|get_item:speaker.id|get_item:'total_words' }} words</p>
+                    <p class="text-xs text-gray-500">{{ speaker.segment_count }} segments</p>
+                    <p class="text-xs text-gray-500">{{ speaker.total_words }} words</p>
                 </div>
-                {% endif %}
             </div>
             {% empty %}
             <p class="text-sm text-gray-500">No speakers identified</p>

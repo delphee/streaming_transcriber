@@ -132,27 +132,21 @@ def conversation_detail(request, conversation_id):
         is_shared=True
     )
 
-    # Get speakers
+    # Get speakers and attach stats to each speaker object
     speakers = conversation.speakers.all()
 
-    # Calculate speaker stats BEFORE slicing (using full queryset)
-    speaker_stats = {}
     for speaker in speakers:
         speaker_segments = conversation.segments.filter(speaker=speaker)
-        speaker_stats[speaker.id] = {
-            'speaker': speaker,
-            'segment_count': speaker_segments.count(),
-            'total_words': sum(len(s.text.split()) for s in speaker_segments)
-        }
+        speaker.segment_count = speaker_segments.count()
+        speaker.total_words = sum(len(s.text.split()) for s in speaker_segments)
 
-    # NOW slice segments for display (after stats are calculated)
+    # Slice segments for display
     segments = conversation.segments.select_related('speaker').order_by('start_time')[:1000]
 
     context = {
         'conversation': conversation,
         'speakers': speakers,
         'segments': segments,
-        'speaker_stats': speaker_stats,
         'has_more_segments': conversation.segments.count() > 1000,
     }
 
