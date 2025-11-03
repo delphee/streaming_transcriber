@@ -518,6 +518,70 @@ def retry_analysis(request, conversation_id):
         'analysis_started': True
     })
 
+
+@csrf_exempt
+def toggle_share(request, conversation_id):
+    """
+    POST /chunking/<conversation_id>/share/
+
+    Toggle the is_shared status for a conversation.
+    Owner or admin only.
+
+    Optional body: {
+        "is_shared": true/false  // If provided, sets explicitly. Otherwise toggles.
+    }
+
+    Returns: {
+        success: bool,
+        is_shared: bool,
+        message: str
+    }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    # Authenticate
+    user, error = authenticate_request(request)
+    if error:
+        return error
+
+    # Get conversation
+    try:
+        if user.is_staff:
+            conversation = ChunkedConversation.objects.get(id=conversation_id)
+        else:
+            conversation = ChunkedConversation.objects.get(id=conversation_id, recorded_by=user)
+    except ChunkedConversation.DoesNotExist:
+        return JsonResponse({'error': 'Conversation not found'}, status=404)
+
+    # Parse optional explicit value from request
+    try:
+        if request.body:
+            data = json.loads(request.body)
+            explicit_value = data.get('is_shared')
+            if explicit_value is not None:
+                conversation.is_shared = bool(explicit_value)
+            else:
+                # Toggle
+                conversation.is_shared = not conversation.is_shared
+        else:
+            # No body, toggle
+            conversation.is_shared = not conversation.is_shared
+    except json.JSONDecodeError:
+        # Toggle if invalid JSON
+        conversation.is_shared = not conversation.is_shared
+
+    conversation.save()
+
+    status_text = "shared" if conversation.is_shared else "private"
+    print(f"🔒 Conversation {conversation_id} marked as {status_text}")
+
+    return JsonResponse({
+        'success': True,
+        'is_shared': conversation.is_shared,
+        'message': f'Conversation marked as {status_text}'
+    })
+
 @csrf_exempt
 def conversation_list(request):
     """

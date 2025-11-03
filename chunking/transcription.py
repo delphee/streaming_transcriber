@@ -532,6 +532,137 @@ def generate_formatted_transcript(conversation):
 
 def analyze_conversation(conversation):
     """
+    Perform comprehensive AI analysis of the conversation using user's assigned prompt.
+    - Summary
+    - Action items
+    - Key topics
+    - Sentiment
+    - Coaching feedback
+
+    Args:
+        conversation: ChunkedConversation instance
+    """
+    if not openai_client:
+        print(f"⚠️ OpenAI client not configured, skipping conversation analysis")
+        return
+
+    print(f"🔍 Analyzing conversation with AI...")
+
+    try:
+        # Get the full transcript
+        transcript = conversation.full_transcript
+
+        if not transcript:
+            print(f"   No transcript available for analysis")
+            return
+
+        # Get user's assigned prompt (or default)
+        from streaming.models import AnalysisPrompt
+
+        user_profile = conversation.recorded_by.profile
+        assigned_prompt = user_profile.assigned_prompt
+
+        # Fallback to default prompt if no assignment
+        if not assigned_prompt:
+            assigned_prompt = AnalysisPrompt.objects.filter(
+                is_default=True,
+                is_active=True
+            ).first()
+
+        # Final fallback to generic prompt if no default exists
+        if assigned_prompt:
+            print(f"   Using prompt: {assigned_prompt.name}")
+            custom_instructions = assigned_prompt.optimized_prompt
+            conversation.prompt_used = assigned_prompt
+        else:
+            print(f"   No assigned prompt found, using generic analysis")
+            custom_instructions = "Analyze this conversation and provide professional insights."
+
+        # Build comprehensive analysis prompt with custom instructions
+        prompt = f"""{custom_instructions}
+
+TRANSCRIPT:
+{transcript[:8000]}  
+
+Please analyze this conversation and provide:
+
+1. **Summary**: A concise 2-3 sentence summary of what was discussed
+2. **Action Items**: List of specific action items or next steps mentioned (if any)
+3. **Key Topics**: Main topics or themes discussed (3-5 topics)
+4. **Sentiment**: Overall sentiment/tone (positive, neutral, negative, or mixed)
+5. **Coaching Feedback**: Constructive feedback for improving communication effectiveness
+
+RESPONSE FORMAT:
+Respond with ONLY valid JSON (no markdown):
+{{
+    "summary": "2-3 sentence summary",
+    "action_items": [
+        {{"who": "Person responsible", "what": "Action description", "when": "Timeframe if mentioned"}}
+    ],
+    "key_topics": ["Topic 1", "Topic 2", "Topic 3"],
+    "sentiment": "positive|neutral|negative|mixed",
+    "coaching_feedback": "Constructive feedback focused on communication effectiveness, rapport building, clarity, and professionalism"
+}}"""
+
+        response = openai_client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert conversation analyst providing actionable insights. Always respond with valid JSON only."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.3,
+            max_tokens=1000
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # Clean up markdown if present
+        result_text = re.sub(r'```json\s*', '', result_text)
+        result_text = re.sub(r'```\s*$', '', result_text)
+        result_text = result_text.strip()
+
+        analysis = json.loads(result_text)
+
+        # Save analysis results
+        conversation.summary = analysis.get('summary', '')
+        conversation.action_items = analysis.get('action_items', [])
+        conversation.key_topics = analysis.get('key_topics', [])
+        conversation.sentiment = analysis.get('sentiment', '')
+        conversation.coaching_feedback = analysis.get('coaching_feedback', '')
+        conversation.analysis_error = ""  # Clear any previous errors
+
+        conversation.save()
+
+        print(f"✅ Conversation analysis complete")
+        print(f"   Summary: {conversation.summary[:100]}...")
+        print(f"   Action items: {len(conversation.action_items)}")
+        print(f"   Key topics: {', '.join(conversation.key_topics)}")
+        print(f"   Sentiment: {conversation.sentiment}")
+
+    except json.JSONDecodeError as e:
+        error_msg = f"Failed to parse AI analysis: {str(e)}"
+        print(f"❌ {error_msg}")
+        print(f"   Response was: {result_text[:200]}")
+        conversation.analysis_error = error_msg
+        conversation.save()
+    except Exception as e:
+        error_msg = f"Error analyzing conversation: {str(e)}"
+        print(f"❌ {error_msg}")
+        import traceback
+        traceback.print_exc()
+        conversation.analysis_error = error_msg
+        conversation.save()
+
+
+
+def analyze_conversationOLD(conversation):
+    """
     Perform comprehensive AI analysis of the conversation:
     - Summary
     - Action items

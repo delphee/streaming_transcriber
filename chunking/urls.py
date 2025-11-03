@@ -16,6 +16,8 @@ urlpatterns = [
     path('<str:conversation_id>/request-upload/', views.request_upload_url, name='request_upload_url'),
     path('<str:conversation_id>/finalize/', views.finalize_conversation, name='finalize_conversation'),
 
+    path('<str:conversation_id>/share/', views.toggle_share, name='toggle_share'),
+
     # Status and info
     path('<str:conversation_id>/status/', views.conversation_status, name='conversation_status'),
     path('<str:conversation_id>/', views.conversation_detail, name='conversation_detail'),
