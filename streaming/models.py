@@ -1,3 +1,10 @@
+'''
+This is streaming/models.py
+The models for the old streaming app
+'''
+
+
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone

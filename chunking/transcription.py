@@ -268,7 +268,7 @@ def transcribe_final_audio(conversation_id):
         # Generate formatted transcript with speaker names
         if transcript.utterances:
             generate_formatted_transcript(conversation)
-           
+
         # Generate conversation analysis
         if openai_client:
             analyze_conversation(conversation)

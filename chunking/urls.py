@@ -1,5 +1,6 @@
 """
-URL routing for chunking app.
+This is chunking/urls.py
+URL routing for the new chunking app.
 """
 
 from django.urls import path

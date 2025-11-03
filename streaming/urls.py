@@ -1,3 +1,9 @@
+'''
+This is streaming/urls.py
+urls for the old streaming app
+'''
+
+
 from django.urls import path
 from . import views, auth_views
 from django.views.generic import RedirectView

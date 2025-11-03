@@ -1,4 +1,7 @@
-from django.shortcuts import render
+'''
+This is chunking/views.py
+views for the new chunking app
+'''
 
 # Create your views here.
 """

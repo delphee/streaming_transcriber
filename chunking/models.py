@@ -1,4 +1,7 @@
-from django.db import models
+'''
+This is chunking/models.py
+For the new chunking app
+'''
 
 # Create your models here.
 from django.db import models
@@ -61,6 +64,16 @@ class ChunkedConversation(models.Model):
     # Error tracking
     transcription_error = models.TextField(blank=True)  # Track transcription errors
     analysis_error = models.TextField(blank=True)  # Track analysis errors
+
+    # === SHARING & PROMPTS ===
+    is_shared = models.BooleanField(default=False)  # Visible to admins in desktop UI
+    prompt_used = models.ForeignKey(
+        'streaming.AnalysisPrompt',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='chunked_conversations'
+    )  # Which prompt was used for analysis
 
     # === DELETION POLICY ===
     save_permanently = models.BooleanField(default=False)  # Override auto-deletion
