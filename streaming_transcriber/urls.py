@@ -21,4 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('streaming.urls')),
     path('chunking/', include('chunking.urls')),
+    path('conversations/', include('chunking.web_urls')),
 ]

@@ -1,0 +1,291 @@
+{% extends 'chunking/base.html' %}
+
+{% block title %}{{ conversation.title }}{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="mb-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <nav class="flex text-sm text-gray-500 mb-2">
+                <a href="{% url 'chunking_web:dashboard' %}" class="hover:text-gray-700">Dashboard</a>
+                <span class="mx-2">/</span>
+                <a href="{% url 'chunking_web:conversation_list' %}" class="hover:text-gray-700">Conversations</a>
+                <span class="mx-2">/</span>
+                <span class="text-gray-900">{{ conversation.title }}</span>
+            </nav>
+            <h1 class="text-3xl font-bold text-gray-900">{{ conversation.title }}</h1>
+        </div>
+        
+        <div class="flex space-x-3">
+            <a href="{% url 'chunking_web:export_transcript' conversation.id %}" 
+               class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                📄 Export Transcript
+            </a>
+            <a href="{% url 'chunking_web:export_analysis' conversation.id %}" 
+               class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                📊 Export Analysis
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Info Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <!-- Metadata Card -->
+    <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+        <h3 class="text-sm font-medium text-gray-500 mb-4">Details</h3>
+        <dl class="space-y-3">
+            <div>
+                <dt class="text-xs text-gray-500">Recorded By</dt>
+                <dd class="text-sm font-medium text-gray-900">
+                    <a href="{% url 'chunking_web:user_conversations' conversation.recorded_by.id %}" 
+                       class="text-indigo-600 hover:text-indigo-500">
+                        {{ conversation.recorded_by.get_full_name|default:conversation.recorded_by.username }}
+                    </a>
+                </dd>
+            </div>
+            <div>
+                <dt class="text-xs text-gray-500">Date</dt>
+                <dd class="text-sm font-medium text-gray-900">{{ conversation.started_at|date:"M d, Y g:i A" }}</dd>
+            </div>
+            <div>
+                <dt class="text-xs text-gray-500">Duration</dt>
+                <dd class="text-sm font-medium text-gray-900">{{ conversation.get_duration_display }}</dd>
+            </div>
+            <div>
+                <dt class="text-xs text-gray-500">Analysis Prompt</dt>
+                <dd class="text-sm font-medium text-gray-900">
+                    {% if conversation.prompt_used %}
+                        {{ conversation.prompt_used.name }}
+                    {% else %}
+                        <span class="text-gray-400">Default</span>
+                    {% endif %}
+                </dd>
+            </div>
+        </dl>
+    </div>
+    
+    <!-- Speakers Card -->
+    <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+        <h3 class="text-sm font-medium text-gray-500 mb-4">Speakers ({{ speakers.count }})</h3>
+        <div class="space-y-3">
+            {% for speaker in speakers %}
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-900">
+                        {{ speaker.identified_name|default:speaker.speaker_label }}
+                    </p>
+                    {% if speaker.is_recording_user %}
+                    <p class="text-xs text-indigo-600">Recording User</p>
+                    {% endif %}
+                </div>
+                {% if speaker.id in speaker_stats %}
+                <div class="text-right">
+                    <p class="text-xs text-gray-500">{{ speaker_stats|get_item:speaker.id|get_item:'segment_count' }} segments</p>
+                    <p class="text-xs text-gray-500">{{ speaker_stats|get_item:speaker.id|get_item:'total_words' }} words</p>
+                </div>
+                {% endif %}
+            </div>
+            {% empty %}
+            <p class="text-sm text-gray-500">No speakers identified</p>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Status Card -->
+    <div class="bg-white shadow-sm rounded-lg border border-gray-200 p-6">
+        <h3 class="text-sm font-medium text-gray-500 mb-4">Status</h3>
+        <div class="space-y-3">
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-700">Chunks Complete</span>
+                {% if conversation.is_chunks_complete %}
+                <span class="text-green-600">✓</span>
+                {% else %}
+                <span class="text-gray-400">○</span>
+                {% endif %}
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-700">Final Upload</span>
+                {% if conversation.is_final_uploaded %}
+                <span class="text-green-600">✓</span>
+                {% else %}
+                <span class="text-gray-400">○</span>
+                {% endif %}
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-700">Analyzed</span>
+                {% if conversation.is_analyzed %}
+                <span class="text-green-600">✓</span>
+                {% else %}
+                <span class="text-yellow-600">⧗</span>
+                {% endif %}
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-700">Shared</span>
+                <span class="text-green-600">✓</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Navigation -->
+<div class="bg-white shadow-sm rounded-lg border border-gray-200 mb-6">
+    <div class="border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+            <button onclick="showTab('transcript')" id="tab-transcript" 
+                    class="tab-button border-indigo-500 text-indigo-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Transcript
+            </button>
+            <button onclick="showTab('analysis')" id="tab-analysis"
+                    class="tab-button border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Analysis
+            </button>
+        </nav>
+    </div>
+    
+    <!-- Transcript Tab -->
+    <div id="content-transcript" class="tab-content p-6">
+        {% if conversation.transcription_error %}
+        <div class="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
+            <p class="text-sm text-red-800">⚠️ Transcription Error: {{ conversation.transcription_error }}</p>
+        </div>
+        {% endif %}
+        
+        {% if segments %}
+        <div class="space-y-4 max-h-[600px] overflow-y-auto">
+            {% for segment in segments %}
+            <div class="flex space-x-3 hover:bg-gray-50 -mx-2 px-2 py-2 rounded">
+                <div class="flex-shrink-0 w-24 text-xs text-gray-500 pt-1">
+                    {{ segment.get_time_display }}
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-900 mb-1">
+                        {% if segment.speaker %}
+                            {{ segment.speaker.identified_name|default:segment.speaker.speaker_label }}
+                        {% else %}
+                            Unknown
+                        {% endif %}
+                    </p>
+                    <p class="text-sm text-gray-700">{{ segment.text }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% if has_more_segments %}
+        <div class="mt-4 text-center">
+            <p class="text-sm text-gray-500">Showing first 1,000 segments. Download full transcript for complete conversation.</p>
+        </div>
+        {% endif %}
+        {% else %}
+        <p class="text-sm text-gray-500 text-center py-8">No transcript segments available</p>
+        {% endif %}
+    </div>
+    
+    <!-- Analysis Tab -->
+    <div id="content-analysis" class="tab-content p-6 hidden">
+        {% if conversation.analysis_error %}
+        <div class="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
+            <p class="text-sm text-red-800">⚠️ Analysis Error: {{ conversation.analysis_error }}</p>
+        </div>
+        {% endif %}
+        
+        {% if conversation.is_analyzed %}
+        <div class="space-y-6">
+            <!-- Summary -->
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Summary</h3>
+                <p class="text-sm text-gray-700">{{ conversation.summary }}</p>
+            </div>
+            
+            <!-- Sentiment -->
+            {% if conversation.sentiment %}
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Sentiment</h3>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium 
+                    {% if conversation.sentiment == 'positive' %}bg-green-100 text-green-800
+                    {% elif conversation.sentiment == 'negative' %}bg-red-100 text-red-800
+                    {% elif conversation.sentiment == 'mixed' %}bg-yellow-100 text-yellow-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ conversation.sentiment|title }}
+                </span>
+            </div>
+            {% endif %}
+            
+            <!-- Key Topics -->
+            {% if conversation.key_topics %}
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Key Topics</h3>
+                <div class="flex flex-wrap gap-2">
+                    {% for topic in conversation.key_topics %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
+                        {{ topic }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Action Items -->
+            {% if conversation.action_items %}
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-3">Action Items</h3>
+                <div class="space-y-3">
+                    {% for item in conversation.action_items %}
+                    <div class="bg-blue-50 rounded-lg p-4">
+                        <p class="text-sm font-medium text-blue-900">{{ item.what }}</p>
+                        {% if item.who %}
+                        <p class="text-xs text-blue-700 mt-1">Assigned to: {{ item.who }}</p>
+                        {% endif %}
+                        {% if item.when %}
+                        <p class="text-xs text-blue-700 mt-1">Due: {{ item.when }}</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Coaching Feedback -->
+            {% if conversation.coaching_feedback %}
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Coaching Feedback</h3>
+                <div class="bg-purple-50 rounded-lg p-4">
+                    <p class="text-sm text-gray-700">{{ conversation.coaching_feedback }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="text-center py-8">
+            <p class="text-sm text-gray-500">Analysis is pending or not yet complete</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function showTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(el => {
+        el.classList.add('hidden');
+    });
+    
+    // Remove active styling from all tabs
+    document.querySelectorAll('.tab-button').forEach(el => {
+        el.classList.remove('border-indigo-500', 'text-indigo-600');
+        el.classList.add('border-transparent', 'text-gray-500');
+    });
+    
+    // Show selected tab content
+    document.getElementById('content-' + tabName).classList.remove('hidden');
+    
+    // Add active styling to selected tab
+    const activeTab = document.getElementById('tab-' + tabName);
+    activeTab.classList.remove('border-transparent', 'text-gray-500');
+    activeTab.classList.add('border-indigo-500', 'text-indigo-600');
+}
+</script>
+
+{% endblock %}

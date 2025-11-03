@@ -35,7 +35,7 @@ class SpeakerInline(admin.TabularInline):
 class ChunkedConversationAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'recorded_by', 'title', 'started_at', 'duration_display',
-        'chunk_count', 'status_display', 'save_permanently'
+        'chunk_count', 'status_display', 'save_permanently', 'is_shared', 'prompt_used'
     )
     list_filter = ('is_chunks_complete', 'is_final_uploaded', 'is_analyzed', 'save_permanently')
     search_fields = ('id', 'title', 'recorded_by__username', 'full_transcript', 'preliminary_transcript')

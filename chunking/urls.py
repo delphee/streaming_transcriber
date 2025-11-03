@@ -9,6 +9,8 @@ from . import views
 app_name = 'chunking'
 
 urlpatterns = [
+    # Receive webhook from ST
+    path('dispatch/', views.st_webhook_receiver, name='st_webhook_receiver'),
     # Chunk upload
     path('chunk/', views.upload_chunk, name='upload_chunk'),
 

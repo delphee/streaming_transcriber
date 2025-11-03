@@ -1,0 +1,174 @@
+{% extends 'chunking/base.html' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
+    <p class="mt-2 text-sm text-gray-600">Overview of shared conversations and analytics</p>
+</div>
+
+<!-- Statistics Cards -->
+<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+    <!-- Total Shared Conversations -->
+    <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="text-3xl">💬</div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">
+                            Shared Conversations
+                        </dt>
+                        <dd class="text-3xl font-semibold text-gray-900">
+                            {{ total_shared }}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Analyzed -->
+    <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="text-3xl">✅</div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">
+                            Analyzed
+                        </dt>
+                        <dd class="text-3xl font-semibold text-gray-900">
+                            {{ analyzed_count }}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Active Users -->
+    <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="text-3xl">👥</div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">
+                            Active Users
+                        </dt>
+                        <dd class="text-3xl font-semibold text-gray-900">
+                            {{ total_users }}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Total Duration -->
+    <div class="bg-white overflow-hidden shadow-sm rounded-lg border border-gray-200">
+        <div class="p-5">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="text-3xl">⏱️</div>
+                </div>
+                <div class="ml-5 w-0 flex-1">
+                    <dl>
+                        <dt class="text-sm font-medium text-gray-500 truncate">
+                            Total Duration
+                        </dt>
+                        <dd class="text-3xl font-semibold text-gray-900">
+                            {{ total_hours }}h {{ total_minutes }}m
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Conversations -->
+<div class="bg-white shadow-sm rounded-lg border border-gray-200">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Recent Shared Conversations</h2>
+    </div>
+    
+    <div class="divide-y divide-gray-200">
+        {% for conversation in recent_conversations %}
+        <a href="{% url 'chunking_web:conversation_detail' conversation.id %}" 
+           class="block hover:bg-gray-50 transition duration-150">
+            <div class="px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center space-x-3">
+                            <h3 class="text-sm font-medium text-gray-900 truncate">
+                                {{ conversation.title }}
+                            </h3>
+                            {% if conversation.is_analyzed %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Analyzed
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                Pending
+                            </span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mt-2 flex items-center text-sm text-gray-500 space-x-4">
+                            <span class="flex items-center">
+                                <svg class="mr-1.5 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+                                </svg>
+                                {{ conversation.recorded_by.get_full_name|default:conversation.recorded_by.username }}
+                            </span>
+                            
+                            <span class="flex items-center">
+                                <svg class="mr-1.5 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                                </svg>
+                                {{ conversation.get_duration_display }}
+                            </span>
+                            
+                            <span class="flex items-center">
+                                <svg class="mr-1.5 h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                                </svg>
+                                {{ conversation.started_at|date:"M d, Y g:i A" }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <svg class="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </a>
+        {% empty %}
+        <div class="px-6 py-8 text-center">
+            <p class="text-sm text-gray-500">No shared conversations yet</p>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% if recent_conversations %}
+    <div class="px-6 py-3 bg-gray-50 border-t border-gray-200">
+        <a href="{% url 'chunking_web:conversation_list' %}" 
+           class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+            View all conversations →
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

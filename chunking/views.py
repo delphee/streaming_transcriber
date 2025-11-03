@@ -19,13 +19,22 @@ ENDPOINTS:
 - GET /chunking/<id>/ - Get conversation details
 """
 
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from django.utils import timezone
-from django.db.models import Q
-import json
+
+from django.http import HttpResponse
 import threading
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib import messages
+from django.db.models import Q, Count
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import json
+
+from .models import ChunkedConversation, Speaker, TranscriptSegment
+from streaming.models import User
 
 from .models import ChunkedConversation, AudioChunk, Speaker, TranscriptSegment
 from streaming.auth_views import get_user_from_token
@@ -52,6 +61,17 @@ from .transcription import (
     transcribe_final_audio,
     search_transcripts
 )
+
+
+def st_webhook_receiver(request):
+    try:
+        body_unicode = request.body.decode('utf-8')
+        data = json.loads(body_unicode)
+    except:
+        print("Webhook data decode error")
+        return HttpResponse(status=200)
+    data = None
+    return HttpResponse(status=200)
 
 def authenticate_request(request):
     print("authenticate_request() is running!......................")
@@ -1149,5 +1169,6 @@ def upload_chunk(request):
         'is_complete': False,
         'message': 'Uploaded'
     })
+
 
 
