@@ -13,6 +13,8 @@ urlpatterns = [
     path('dispatch/', views.st_webhook_receiver, name='st_webhook_receiver'),
     # Chunk upload
     path('chunk/', views.upload_chunk, name='upload_chunk'),
+    # iOS conversation retrieval
+    path('recent-summaries/', views.recent_summaries, name='recent_summaries'),
 
     # Final file upload workflow
     path('<str:conversation_id>/request-upload/', views.request_upload_url, name='request_upload_url'),
@@ -37,6 +39,5 @@ urlpatterns = [
     # Search
     path('search/', views.search_conversations, name='search_conversations'),
 
-    # iOS conversation retrieval
-    path('recent-summaries/', views.recent_summaries, name='recent_summaries'),
+
 ]
