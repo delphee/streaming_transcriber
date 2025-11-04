@@ -490,7 +490,7 @@ def conversation_analysis(request, conversation_id):
     }
     
     '''
-    if conversation.analysis_error is not None:
+    if conversation.analysis_error not in ["", None]:
         data = {
             'status':'failed',
             'summary': '',
