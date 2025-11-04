@@ -1,1 +1,1 @@
-web: daphne -b 0.0.0.0 -p $PORT streaming_transcriber.asgi:application
+web: gunicorn streaming_transcriber.wsgi --log-file-

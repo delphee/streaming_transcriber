@@ -1,6 +1,4 @@
 Django~=5.2.7
-channels==4.1.0
-daphne==4.1.2
 assemblyai==0.45.4
 psycopg2-binary==2.9.9
 python-decouple==3.8
@@ -13,3 +11,4 @@ numpy==1.24.3
 scipy==1.10.1
 noisereduce==3.0.0
 pyloudnorm==0.1.1
+gunicorn==23.0.0

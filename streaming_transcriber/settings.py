@@ -109,7 +109,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'streaming.apps.StreamingConfig',
     'chunking',
-    'channels',
+    #'channels',
 ]
 
 MIDDLEWARE = [
@@ -142,7 +142,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'streaming_transcriber.wsgi.application'
-ASGI_APPLICATION = 'streaming_transcriber.asgi.application'
+#ASGI_APPLICATION = 'streaming_transcriber.asgi.application'
 
 CHANNEL_LAYERS = {
     'default': {

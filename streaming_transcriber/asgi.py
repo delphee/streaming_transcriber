@@ -25,3 +25,10 @@ application = ProtocolTypeRouter({
         )
     ),
 })
+
+'''
+Add to requirements.txt:
+channels==4.1.0
+daphne==4.1.2
+
+'''
