@@ -604,6 +604,7 @@ def toggle_share(request, conversation_id):
 
 @csrf_exempt
 def recent_summaries(request):
+    print("recent_summaries() is running!.........")
     """
     GET /chunking/recent-summaries/
 
