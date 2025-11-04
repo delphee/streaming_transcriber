@@ -490,12 +490,31 @@ def conversation_analysis(request, conversation_id):
     }
     
     '''
-    data = {
-        'status': 'complete',
-        'summary': conversation.summary,
-        'action_items': conversation.action_items,
-
+    if conversation.analysis_error is not None:
+        data = {
+            'status':'failed',
+            'summary': '',
+            'error':conversation.analysis_error
         }
+        print(data)
+
+        return JsonResponse(data)
+
+    if not conversation.is_analyzed:
+        data = {
+            'status': 'pending',
+            'summary': '',
+            'action_items': [],
+        }
+
+    else:
+
+        data = {
+            'status': 'complete',
+            'summary': conversation.summary,
+            'action_items': conversation.action_items,
+
+            }
 
     print(data)
 
