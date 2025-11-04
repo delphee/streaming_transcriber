@@ -682,6 +682,7 @@ def recent_summaries(request):
         }
         for c in conversations
     ]
+    print(conversations_data)
 
     return JsonResponse({
         'conversations': conversations_data
