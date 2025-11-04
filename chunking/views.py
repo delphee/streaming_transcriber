@@ -464,7 +464,7 @@ def conversation_analysis(request, conversation_id):
     except ChunkedConversation.DoesNotExist:
         return JsonResponse({'error': 'Conversation not found'}, status=404)
 
-    return JsonResponse({
+    '''return JsonResponse({
         'id': conversation.id,
         'title': conversation.title,
         'is_analyzed': conversation.is_analyzed,
@@ -475,6 +475,30 @@ def conversation_analysis(request, conversation_id):
         'coaching_feedback': conversation.coaching_feedback,
         'transcription_error': conversation.transcription_error,
         'analysis_error': conversation.analysis_error
+    })'''
+
+    '''
+    TODO:
+    return {'status':'pending',
+            'message':'Analysis in progress...',
+            'last_updated': conversations.last_updated.isoformat(),
+            }
+    WHEN NECESSARY
+    or 
+    {'status':'failed',
+    'error':'Transcription service unavailable'
+    'last_updated':conversations.last_updated.isoformat(),
+    }
+    
+    '''
+
+    return JsonResponse({
+        'status': 'complete',
+        'analysis': {
+            'summary': conversation.summary,
+            'action_items': conversation.action_items,
+        },
+        'last_updated': conversation.last_updated.isoformat()
     })
 
 
@@ -652,13 +676,9 @@ def recent_summaries(request):
             'ended_at': c.ended_at.isoformat() if c.ended_at else None,
             'job_number': c.job_number,
             'customer_name': c.customer_name,
+            'analysis_status': "complete",
             'is_shared': c.is_shared,
             'total_duration_seconds': c.total_duration_seconds,
-            'summary': c.summary,
-            'action_items': c.action_items,
-            'key_topics': c.key_topics,
-            'sentiment': c.sentiment,
-            'coaching_feedback': c.coaching_feedback
         }
         for c in conversations
     ]
