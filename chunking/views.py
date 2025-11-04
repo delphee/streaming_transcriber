@@ -431,6 +431,7 @@ def conversation_detail(request, conversation_id):
 
 @csrf_exempt
 def conversation_analysis(request, conversation_id):
+    print("conversation_analysis running!.........")
     """
     GET /chunking/<conversation_id>/analysis/
 
@@ -489,14 +490,16 @@ def conversation_analysis(request, conversation_id):
     }
     
     '''
-
-    return JsonResponse({
+    data = {
         'status': 'complete',
-        'analysis': {
-            'summary': conversation.summary,
-            'action_items': conversation.action_items,
-        },
-    })
+        'summary': conversation.summary,
+        'action_items': conversation.action_items,
+
+        }
+
+    print(data)
+
+    return JsonResponse(data)
 
 
 @csrf_exempt
