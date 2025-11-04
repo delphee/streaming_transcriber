@@ -54,6 +54,10 @@ else:
     AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
     AUDIO_RETENTION_DAYS = os.environ.get('AUDIO_RETENTION_DAYS', '7')
+    ST_API_KEY = os.environ.get('ST_API_KEY')
+    ST_CLIENT_ID = os.environ.get('ST_CLIENT_ID')
+    ST_CLIENT_SECRET = os.environ.get('ST_CLIENT_SECRET')
+    TENANT_ID = os.environ.get('TENANT_ID')
 
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 AWS_S3_FILE_OVERWRITE = False  # Don't overwrite files with same name
