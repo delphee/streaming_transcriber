@@ -44,7 +44,7 @@ urlpatterns = [
     path('prompts/<int:prompt_id>/assign/', views.prompt_assign, name='prompt_assign'),
 
     # API Endpoints for iOS
-    path('api/conversations/', views.api_conversation_list, name='api_conversation_list'),
-    path('api/conversations/<str:conversation_id>/', views.api_conversation_detail, name='api_conversation_detail'),
-    path('api/conversations/<str:conversation_id>/upload-hq-audio/', views.api_upload_hq_audio, name='api_upload_hq_audio'),
+    #path('api/conversations/', views.api_conversation_list, name='api_conversation_list'),
+    #path('api/conversations/<str:conversation_id>/', views.api_conversation_detail, name='api_conversation_detail'),
+    #path('api/conversations/<str:conversation_id>/upload-hq-audio/', views.api_upload_hq_audio, name='api_upload_hq_audio'),
 ]
