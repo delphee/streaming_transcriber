@@ -481,13 +481,11 @@ def conversation_analysis(request, conversation_id):
     TODO:
     return {'status':'pending',
             'message':'Analysis in progress...',
-            'last_updated': conversations.last_updated.isoformat(),
             }
     WHEN NECESSARY
     or 
     {'status':'failed',
     'error':'Transcription service unavailable'
-    'last_updated':conversations.last_updated.isoformat(),
     }
     
     '''
@@ -498,7 +496,6 @@ def conversation_analysis(request, conversation_id):
             'summary': conversation.summary,
             'action_items': conversation.action_items,
         },
-        'last_updated': conversation.last_updated.isoformat()
     })
 
 
