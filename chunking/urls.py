@@ -36,4 +36,7 @@ urlpatterns = [
 
     # Search
     path('search/', views.search_conversations, name='search_conversations'),
+
+    # iOS conversation retrieval
+    path('recent-summaries/', views.recent_summaries, name='recent_summaries'),
 ]

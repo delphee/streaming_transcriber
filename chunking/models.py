@@ -20,6 +20,10 @@ class ChunkedConversation(models.Model):
     id = models.CharField(max_length=100, primary_key=True)
     recorded_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chunked_conversations')
 
+    # ServiceTitan data
+    job_number = models.CharField(max_length=100, blank=True, null=True)
+    customer_name = models.CharField(max_length=255, blank=True, null=True)
+
     # Timing
     started_at = models.DateTimeField(default=timezone.now)
     ended_at = models.DateTimeField(null=True, blank=True)

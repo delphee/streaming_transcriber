@@ -98,7 +98,8 @@ def ios_login(request):
                 'username': authenticated_user.username,
                 'first_name': authenticated_user.first_name,
                 'last_name': authenticated_user.last_name,
-                'is_staff': authenticated_user.is_staff,
+                'user_type': 'admin' if authenticated_user.is_staff else 'user',
+                'auto_share': authenticated_user.auto_share
             }
         })
 

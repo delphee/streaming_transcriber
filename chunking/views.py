@@ -39,7 +39,6 @@ from streaming.models import User
 from .models import ChunkedConversation, AudioChunk, Speaker, TranscriptSegment
 from streaming.auth_views import get_user_from_token
 from .s3_handler import (
-    upload_chunk_to_s3,
     generate_presigned_upload_url,
     generate_presigned_download_url,
     verify_file_exists,
@@ -600,6 +599,71 @@ def toggle_share(request, conversation_id):
         'success': True,
         'is_shared': conversation.is_shared,
         'message': f'Conversation marked as {status_text}'
+    })
+
+
+@csrf_exempt
+def recent_summaries(request):
+    """
+    GET /chunking/recent-summaries/
+
+    Get last 10 analyzed conversations for the authenticated user.
+    Only returns conversations where is_analyzed=True.
+
+    Returns: {
+        conversations: [
+            {
+                id: str,
+                started_at: str (ISO format),
+                ended_at: str (ISO format) or null,
+                job_number: str or null,
+                customer_name: str or null,
+                is_shared: bool,
+                total_duration_seconds: int,
+                summary: str,
+                action_items: list,
+                key_topics: list,
+                sentiment: str,
+                coaching_feedback: str
+            }
+        ]
+    }
+    """
+    if request.method != 'GET':
+        return JsonResponse({'error': 'GET required'}, status=405)
+
+    # Authenticate
+    user, error = authenticate_request(request)
+    if error:
+        return error
+
+    # Get user's analyzed conversations, most recent first
+    conversations = ChunkedConversation.objects.filter(
+        recorded_by=user,
+        is_analyzed=True
+    ).order_by('-started_at')[:10]
+
+    # Serialize
+    conversations_data = [
+        {
+            'id': c.id,
+            'started_at': c.started_at.isoformat(),
+            'ended_at': c.ended_at.isoformat() if c.ended_at else None,
+            'job_number': c.job_number,
+            'customer_name': c.customer_name,
+            'is_shared': c.is_shared,
+            'total_duration_seconds': c.total_duration_seconds,
+            'summary': c.summary,
+            'action_items': c.action_items,
+            'key_topics': c.key_topics,
+            'sentiment': c.sentiment,
+            'coaching_feedback': c.coaching_feedback
+        }
+        for c in conversations
+    ]
+
+    return JsonResponse({
+        'conversations': conversations_data
     })
 
 @csrf_exempt
