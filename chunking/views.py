@@ -69,7 +69,7 @@ def receive_webhook(request):
     try:
         body_unicode = request.body.decode('utf-8')
         wh = json.loads(body_unicode)
-        print(wh)
+        #print(wh)
     except Exception as e:
         print(f"Webhook data decode error: {e}")
         return HttpResponse(status=200)
