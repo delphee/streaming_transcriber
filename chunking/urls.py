@@ -5,7 +5,7 @@ app_name = 'chunking'
 
 urlpatterns = [
     # --- Webhook & chunk uploads ---
-    path('dispatch/', views.st_webhook_receiver, name='st_webhook_receiver'),
+
     path('chunk/', views.upload_chunk, name='upload_chunk'),
 
     # --- Search & recent summaries (fixed endpoints first) ---
