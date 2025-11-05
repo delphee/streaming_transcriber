@@ -24,6 +24,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse
 import threading
+from datetime import datetime
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
@@ -68,6 +69,7 @@ def receive_webhook(request):
     try:
         body_unicode = request.body.decode('utf-8')
         wh = json.loads(body_unicode)
+        print(wh)
     except Exception as e:
         print(f"Webhook data decode error: {e}")
         return HttpResponse(status=200)
