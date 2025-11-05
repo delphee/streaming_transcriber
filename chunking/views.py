@@ -21,7 +21,7 @@ ENDPOINTS:
 
 from django.conf import settings
 from django.utils import timezone
-
+from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse
 import threading
 from django.shortcuts import render, redirect, get_object_or_404
@@ -61,7 +61,7 @@ from .transcription import (
     search_transcripts
 )
 
-
+@csrf_exempt
 def st_webhook_receiver(request):
     try:
         body_unicode = request.body.decode('utf-8')
