@@ -62,15 +62,28 @@ from .transcription import (
 )
 
 @csrf_exempt
-def st_webhook_receiver(request):
+def receive_webhook(request):
+    print("Webhook received")
+    jobId = 0
     try:
         body_unicode = request.body.decode('utf-8')
-        data = json.loads(body_unicode)
-        print("Webhook received")
-    except:
-        print("Webhook data decode error")
+        wh = json.loads(body_unicode)
+    except Exception as e:
+        print(f"Webhook data decode error: {e}")
         return HttpResponse(status=200)
-    data = None
+    try:
+        data = wh["data"]
+        job = data["job"]
+        locationId = job["locationId"]
+        customerId = job["customerId"]
+        jobId = job["jobId"]
+        appointmentId = job["appointment"]["id"]
+        appointmentNumber = job["appointment"]["appointmentNumber"]
+        recallForId = job["recallForId"]
+        leadSourceId = job["jobGeneratedLeadSource"]["employeeId"]
+    except Exception as e:
+        print(f"Webhook data error: {e}")
+    print(f"Webhook for job {jobId}")
     return HttpResponse(status=200)
 
 def authenticate_request(request):
