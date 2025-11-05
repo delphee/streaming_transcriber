@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-import os
+import os, ssl
 
 print("Reading settings...")
 
@@ -191,7 +191,11 @@ Q_CLUSTER = {
     'label': 'Django Q',
 
     # Redis broker settings
-    "redis": os.environ.get("REDIS_URL").replace("rediss://", "rediss://?ssl_cert_reqs=none"),
+    "redis": {
+        "host": os.environ.get("REDIS_URL"),
+        "ssl": True,
+        "ssl_cert_reqs": ssl.CERT_NONE,  # <-- this disables cert verification safely
+    },
 
 
     # Optionally disable catch-up
