@@ -179,8 +179,9 @@ else:
         }
     }
 
+# Redis/Django Q configuration
 if PRODUCTION:
-    # Production: Use Heroku Redis URL
+    # Production: Use Heroku Redis URL with SSL
     import urllib.parse as urlparse
 
     redis_url = urlparse.urlparse(os.environ.get('REDIS_URL', ''))
@@ -200,6 +201,8 @@ if PRODUCTION:
             'port': redis_url.port,
             'db': 0,
             'password': redis_url.password,
+            'ssl': True,  # Required for Heroku Redis
+            'ssl_cert_reqs': None,  # Don't verify SSL certificates
         },
         'catch_up': False,
     }
