@@ -66,6 +66,7 @@ def st_webhook_receiver(request):
     try:
         body_unicode = request.body.decode('utf-8')
         data = json.loads(body_unicode)
+        print("Webhook received")
     except:
         print("Webhook data decode error")
         return HttpResponse(status=200)
