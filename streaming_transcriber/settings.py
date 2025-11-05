@@ -179,28 +179,49 @@ else:
         }
     }
 
-Q_CLUSTER = {
-    'name': 'myapp-qcluster',
-    'workers': 4,
-    'recycle': 500,
-    'timeout': 60,
-    'retry': 120,
-    'compress': True,
-    'save_limit': 250,
-    'queue_limit': 50,
-    'label': 'Django Q',
+if PRODUCTION:
+    # Production: Use Heroku Redis URL
+    import urllib.parse as urlparse
 
-    # Redis broker settings
-    "redis": {
-        "host": os.environ.get("REDIS_URL"),
-        "ssl": True,
-        "ssl_cert_reqs": ssl.CERT_NONE,  # <-- this disables cert verification safely
-    },
+    redis_url = urlparse.urlparse(os.environ.get('REDIS_URL', ''))
 
-
-    # Optionally disable catch-up
-    'catch_up': False,
-}
+    Q_CLUSTER = {
+        'name': 'myapp-qcluster',
+        'workers': 4,
+        'recycle': 500,
+        'timeout': 60,
+        'retry': 120,
+        'compress': True,
+        'save_limit': 250,
+        'queue_limit': 50,
+        'label': 'Django Q',
+        'redis': {
+            'host': redis_url.hostname,
+            'port': redis_url.port,
+            'db': 0,
+            'password': redis_url.password,
+        },
+        'catch_up': False,
+    }
+else:
+    # Local development
+    Q_CLUSTER = {
+        'name': 'myapp-qcluster',
+        'workers': 4,
+        'recycle': 500,
+        'timeout': 60,
+        'retry': 120,
+        'compress': True,
+        'save_limit': 250,
+        'queue_limit': 50,
+        'label': 'Django Q',
+        'redis': {
+            'host': 'localhost',
+            'port': 6379,
+            'db': 0,
+        },
+        'catch_up': False,
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
