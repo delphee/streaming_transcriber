@@ -86,7 +86,7 @@ def receive_webhook(request):
         leadSourceId = None
         if "employeeId" in leadSource:
             leadSourceId = leadSource["employeeId"]
-        print(f"Webhook for job {jobId}")
+        print(f"Webhook for job {jobId}, appointment {appointmentId}")
     except Exception as e:
         print(f"Webhook data error: {e}")
 
