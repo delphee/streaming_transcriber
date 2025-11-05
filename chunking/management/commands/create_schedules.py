@@ -4,6 +4,7 @@ from django.core.management.base import BaseCommand
 from django_q.tasks import schedule
 from django_q.models import Schedule
 
+
 class Command(BaseCommand):
     help = "Ensure recurring schedules exist"
 

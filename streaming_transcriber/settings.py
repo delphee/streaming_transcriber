@@ -191,11 +191,7 @@ Q_CLUSTER = {
     'label': 'Django Q',
 
     # Redis broker settings
-    'redis': {
-        'host': os.environ.get('REDIS_URL'),  # Heroku will set this
-        'ssl': True,                           # Heroku KVS requires TLS
-        'ssl_cert_reqs': None,                 # If necessary (Heroku docs show verification may need disabled) :contentReference[oaicite:8]{index=8}
-    },
+    "redis": os.environ.get("REDIS_URL"),
 
     # Optionally disable catch-up
     'catch_up': False,
