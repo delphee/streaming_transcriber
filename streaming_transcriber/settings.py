@@ -114,6 +114,7 @@ INSTALLED_APPS = [
     'streaming.apps.StreamingConfig',
     'chunking',
     'history',
+    'django_q',
     #'channels',
 ]
 
