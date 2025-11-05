@@ -81,9 +81,10 @@ def receive_webhook(request):
         appointmentNumber = job["appointment"]["appointmentNumber"]
         recallForId = job["recallForId"]
         leadSourceId = job["jobGeneratedLeadSource"]["employeeId"]
+        print(f"Webhook for job {jobId}")
     except Exception as e:
         print(f"Webhook data error: {e}")
-    print(f"Webhook for job {jobId}")
+
     return HttpResponse(status=200)
 
 def authenticate_request(request):
