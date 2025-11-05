@@ -191,7 +191,8 @@ Q_CLUSTER = {
     'label': 'Django Q',
 
     # Redis broker settings
-    "redis": os.environ.get("REDIS_URL"),
+    "redis": os.environ.get("REDIS_URL").replace("rediss://", "rediss://?ssl_cert_reqs=none"),
+
 
     # Optionally disable catch-up
     'catch_up': False,
