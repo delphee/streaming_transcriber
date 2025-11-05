@@ -16,10 +16,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from chunking.views import st_webhook_receiver
+from chunking.views import receive_webhook
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('dispatch/', st_webhook_receiver, name='st_webhook_receiver'),
+    path('dispatch/', receive_webhook, name='st_webhook_receiver'),
     path('', include('streaming.urls')),
     path('chunking/', include('chunking.urls')),
     path('conversations/', include('chunking.web_urls')),
