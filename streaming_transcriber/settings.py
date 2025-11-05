@@ -178,7 +178,27 @@ else:
         }
     }
 
+Q_CLUSTER = {
+    'name': 'myapp-qcluster',
+    'workers': 4,
+    'recycle': 500,
+    'timeout': 60,
+    'retry': 120,
+    'compress': True,
+    'save_limit': 250,
+    'queue_limit': 50,
+    'label': 'Django Q',
 
+    # Redis broker settings
+    'redis': {
+        'host': os.environ.get('REDIS_URL'),  # Heroku will set this
+        'ssl': True,                           # Heroku KVS requires TLS
+        'ssl_cert_reqs': None,                 # If necessary (Heroku docs show verification may need disabled) :contentReference[oaicite:8]{index=8}
+    },
+
+    # Optionally disable catch-up
+    'catch_up': False,
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
