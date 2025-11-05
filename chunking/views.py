@@ -79,10 +79,13 @@ def receive_webhook(request):
         locationId = job["locationId"]
         customerId = job["customerId"]
         jobId = job["id"]
-        appointmentId = job["appointment"]["id"]
-        appointmentNumber = job["appointment"]["appointmentNumber"]
-        recallForId = job["recallForId"]
-        leadSourceId = job["jobGeneratedLeadSource"]["employeeId"]
+        appointment = data["appointment"]
+        appointmentId = appointment["id"]
+        appointmentNumber = appointment["appointmentNumber"]
+        leadSource = job["jobGeneratedLeadSource"]
+        leadSourceId = None
+        if "employeeId" in leadSource:
+            leadSourceId = leadSource["employeeId"]
         print(f"Webhook for job {jobId}")
     except Exception as e:
         print(f"Webhook data error: {e}")
