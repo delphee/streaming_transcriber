@@ -78,7 +78,7 @@ def receive_webhook(request):
         job = data["job"]
         locationId = job["locationId"]
         customerId = job["customerId"]
-        jobId = job["jobId"]
+        jobId = job["id"]
         appointmentId = job["appointment"]["id"]
         appointmentNumber = job["appointment"]["appointmentNumber"]
         recallForId = job["recallForId"]
