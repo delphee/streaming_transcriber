@@ -26,13 +26,18 @@ def pollA():
             #
             #   Find tech's data in list, if it is there
             #
-            tech_data = None
             techusers = [str(o.st_id) for o in UserProfile.objects.all()]
+
             for assignment in appointment_assignments:
                 if str(assignment["technicianId"]) not in techusers:
-                    d_job.active = False
-                    d_job.save()
+                    # This would be a ride-along or helper
                     continue
+                #
+                #   In the case of multiple techs, we need to be working with the right assignment for the d_job tech_id
+                #
+                if assignment["technicianId"] != d_job.tech_id:
+                    continue
+
                 if assignment["status"] == "Dispatched":
                     #
                     #   Ensure polling for "Working" starts
@@ -40,7 +45,7 @@ def pollA():
                     HistoryJob.objects.get_or_create(job_id=str(assignment["jobId"]),appointment_id=str(assignment["appointmentId"]))
                     d_job.polling_active = True
                     d_job.save()
-                elif assignment["status"] == "Done": # THIS IS WHAT TRIGGERS RECORDING STOP (Add Job Complete Webhook too?)
+                elif assignment["status"] == "Done": # THIS CAN TRIGGER RECORDING STOP, BUT pollA shouldn't find this
                     d_job.status = "Done"
                     d_job.polling_active = False
                     d_job.active = False
@@ -51,7 +56,7 @@ def pollA():
                     d_job.active = False
                     d_job.save()
                 elif assignment["status"] == "Working":
-                    d_job.status = "Working"    # THIS IS WHAT TRIGGERS RECORDING START
+                    d_job.status = "Working"    # THIS IS WHAT TRIGGERS RECORDING START; don't set active to False
                     d_job.polling_active = False
                     d_job.save()
                 else:
@@ -63,5 +68,57 @@ def pollA():
         print(f"PollA failed: {e}")
 
 
-def pollB():
-    print("10 minute poll...")
+def pollB():    # A less-frequent polling to catch any job completions that didn't trigger a JobComplete Webhook
+    try:
+        print("10 minute poll...")
+        dispatch_jobs = DispatchJob.objects.filter(active=True, status="Working")
+        for d_job in dispatch_jobs:
+            jobs = jobs_api_call(jobNumber=d_job.id)
+            if len(jobs) == 0:
+                # Job was deleted (?) but recording may have started already
+                d_job.status="Done"
+                d_job.active = False
+                d_job.save()
+                continue
+            job = jobs[0]
+            if "jobStatus" in job and job["jobStatus"] in ["Canceled", "Hold"]:
+                # Recording may have started already
+                d_job.status = "Done"
+                d_job.active = False
+                d_job.save()
+                continue
+            appointment_assignments = appointment_assignments_api_call(appointmentIds=d_job.appointmentId)
+            if len(appointment_assignments) == 0:
+                # Appointment canceled, but recording may have started already
+                d_job.status = "Done"
+                d_job.active = False
+                d_job.save()
+                continue
+            #
+            #   Find tech's data in list, if it is there
+            #
+            techusers = [str(o.st_id) for o in UserProfile.objects.all()]
+
+            for assignment in appointment_assignments:
+                if str(assignment["technicianId"]) not in techusers:
+                    # This would be a ride-along or helper
+                    continue
+                #
+                #   In the case of multiple techs, we need to be working with the right assignment for the d_job tech_id
+                #
+                if assignment["technicianId"] != d_job.tech_id:
+                    continue
+                if assignment["status"] in ["Done","Scheduled"]: # Recording should not be happening; stop it if it is
+                    d_job.status = "Done"
+                    d_job.polling_active = False
+                    d_job.active = False
+                    d_job.save()
+                    continue
+                if assignment["status"] == "Dispatched": # Tech arrived on wrong job (??) Reset DispatchJob
+                    d_job.status = "Dispatched"
+                    d_job.polling_active = True
+                    d_job.active = True
+                    d_job.save()
+
+    except Exception as e:
+        print(f"PollB failed: {e}")
