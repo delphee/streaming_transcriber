@@ -15,7 +15,10 @@ class DispatchJob(models.Model):
     active = models.BooleanField(default=True)
     last_updated = models.DateTimeField(auto_now=True)
     polling_active = models.BooleanField(default=True)
-
+    '''
+    TODO:
+    Am I missing status above?  Look at usage in chunking/views; deal with status
+    '''
     def __str__(self):
         return f"{self.job_id} - {self.appointment_id} {'Polling...' if self.polling_active else ''}"
 

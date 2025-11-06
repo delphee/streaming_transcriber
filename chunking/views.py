@@ -36,7 +36,9 @@ import json
 
 from .models import ChunkedConversation, Speaker, TranscriptSegment
 from streaming.models import User
-
+from history.models import DispatchJob
+from history.st_api import appointment_assignments_api_call
+from streaming.models import UserProfile
 from .models import ChunkedConversation, AudioChunk, Speaker, TranscriptSegment
 from streaming.auth_views import get_user_from_token
 from .s3_handler import (
@@ -91,6 +93,20 @@ def receive_webhook(request):
         print(f"Webhook data error: {e}")
 
     return HttpResponse(status=200)
+
+def get_dispatched_employees(appointmentId):
+    try:
+        techusers = [str(o.st_id) for o in UserProfile.objects.all()]
+        if appointmentId:
+            assignments = appointment_assignments_api_call(appointmentIds=appointmentId)
+            for assignment in assignments:
+                if assignment["technicianId"] in techusers:
+                    obj, created = DispatchJob.objects.get_or_create(active=True, appointmentId=appointmentId, tech_id=assignment["technicianId"],job_id=str(assignment["jobId"]))
+                    if created:
+                        obj.polling_active = False
+    except Exception as e:
+        print(f"Error getting dispatched employees: {e}")
+
 
 def authenticate_request(request):
     print("authenticate_request() is running!......................")

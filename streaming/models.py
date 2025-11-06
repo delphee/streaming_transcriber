@@ -174,6 +174,7 @@ class AnalysisPrompt(models.Model):
 class UserProfile(models.Model):
     """Extended user profile with app-specific settings"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    st_id = models.CharField(max_length=50, null=True, blank=True)
 
     # Feature flags (modular features)
     enable_real_time_coaching = models.BooleanField(default=False)

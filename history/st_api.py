@@ -184,9 +184,9 @@ def jobs_api_call(tenant,jobNumber=None,projectId=None,jobStatus=None,appointmen
         return []
     return data
 
-APPOINTMENTSASSIGNMENTSAPIFILTERSTRINGS = ['ids','jobId','technicianId','createdOnOrAfter','createdBefore']
-def appointment_assignments_api_call(tenant,ids=None,jobId=None,technicianId=None,createdOnOrAfter=None,createdBefore=None):
-    APPOINTMENTSASSIGNMENTSAPIFILTERS = [ids,jobId,technicianId,createdOnOrAfter,createdBefore]
+APPOINTMENTSASSIGNMENTSAPIFILTERSTRINGS = ['ids','appointmentIds','jobId','technicianId','createdOnOrAfter','createdBefore']
+def appointment_assignments_api_call(tenant=TENANT_ID,ids=None,appointmentIds=None,jobId=None,technicianId=None,createdOnOrAfter=None,createdBefore=None):
+    APPOINTMENTSASSIGNMENTSAPIFILTERS = [ids,appointmentIds,jobId,technicianId,createdOnOrAfter,createdBefore]
     urltext = ""
     for i in range(len(APPOINTMENTSASSIGNMENTSAPIFILTERS)):
         if APPOINTMENTSASSIGNMENTSAPIFILTERS[i] is not None:
@@ -206,7 +206,7 @@ def appointment_assignments_api_call(tenant,ids=None,jobId=None,technicianId=Non
     hasMore = True
     data = []
     try:
-        while hasMore and (count < 100):
+        while hasMore and (count < 10):
             url = baseurl + f"&page={page}"
             print(url)
             resp = requests.get(url, headers=headers)
