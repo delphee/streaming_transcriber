@@ -21,6 +21,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('dispatch/', receive_webhook, name='st_webhook_receiver'),
     path('', include('streaming.urls')),
+    path('', include('history.urls')),
     path('chunking/', include('chunking.urls')),
     path('conversations/', include('chunking.web_urls')),
 ]
