@@ -131,7 +131,7 @@ def invoices_api_call(tenant,ids=None,statuses=None,jobId=None,jobNumber=None,bu
         return []
     return data
 
-JOBSAPIFILTERSTRINGS = ['jobNumber','projectId','jobStatus','appointmentStatus','firstAppointmentStartsOnOrAfter',
+JOBSAPIFILTERSTRINGS = ['id','number','projectId','jobStatus','appointmentStatus','firstAppointmentStartsOnOrAfter',
                         'firstAppointmentStartsBefore','appointmentStartsOnOrAfter','technicianId','customerId','locationId',
                         'soldById','jobTypeId','businessUnitId','invoiceId','createdBefore','createdOnOrAfter',
                         'modifiedBefore','modifiedOnOrAfter','completedOnOrAfter','completedBefore']
