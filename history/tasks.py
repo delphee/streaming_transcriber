@@ -1,5 +1,5 @@
 from django.utils import timezone
-from st_api import jobs_api_call, appointment_assignments_api_call
+from history.st_api import jobs_api_call, appointment_assignments_api_call
 from history.models import DispatchJob, HistoryJob
 from streaming.models import UserProfile
 
