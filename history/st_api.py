@@ -136,7 +136,7 @@ JOBSAPIFILTERSTRINGS = ['jobNumber','projectId','jobStatus','appointmentStatus',
                         'soldById','jobTypeId','businessUnitId','invoiceId','createdBefore','createdOnOrAfter',
                         'modifiedBefore','modifiedOnOrAfter','completedOnOrAfter','completedBefore']
 
-def jobs_api_call(tenant,jobNumber=None,projectId=None,jobStatus=None,appointmentStatus=None,
+def jobs_api_call(tenant=TENANT_ID,jobNumber=None,projectId=None,jobStatus=None,appointmentStatus=None,
                   firstAppointmentStartsOnOrAfter=None,firstAppointmentStartsBefore=None,appointmentStartsOnOrAfter=None,
                   technicianId=None,customerId=None,locationId=None,soldById=None,jobTypeId=None,businessUnitId=None,
                   invoiceId=None,createdBefore=None,createdOnOrAfter=None,modifiedBefore=None,modifiedOnOrAfter=None,
@@ -224,7 +224,7 @@ def appointment_assignments_api_call(tenant=TENANT_ID,ids=None,appointmentIds=No
 
 CUSTOMERSAPIFILTERSTRINGS = ['ids','createdBefore','createdOnOrAfter','name','street','city','state','zip','phone',
                              'active']
-def customers_api_call(tenant,ids=None,createdBefore=None,createdOnOrAfter=None,name=None,street=None,city=None,
+def customers_api_call(tenant=TENANT_ID,ids=None,createdBefore=None,createdOnOrAfter=None,name=None,street=None,city=None,
                        state=None,zip=None,phone=None,active=None):
     CUSTOMERSAPIFILTERS = [ids,createdBefore,createdOnOrAfter,name,street,city,state,zip,phone,active]
     urltext = ""
@@ -266,7 +266,7 @@ def customers_api_call(tenant,ids=None,createdBefore=None,createdOnOrAfter=None,
 
 
 ESTIMATESAPIFILTERSTRINGS = ['ids','status','jobId','projectId','jobNumber','number','soldAfter','soldBefore','soldBy','createdOnOrAfter']
-def estimates_api_call(tenant,ids=None,status=None,jobId=None,projectId=None,jobNumber=None,number=None,soldAfter=None,
+def estimates_api_call(tenant=TENANT_ID,ids=None,status=None,jobId=None,projectId=None,jobNumber=None,number=None,soldAfter=None,
                       soldBefore=None,soldBy=None,createdOnOrAfter=None):
     urltext = ""
     ESTIMATESAPIFILTERS = [ids,status,jobId,projectId,jobNumber,number,soldAfter,soldBefore,soldBy,createdOnOrAfter]
