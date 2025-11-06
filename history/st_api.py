@@ -136,12 +136,12 @@ JOBSAPIFILTERSTRINGS = ['jobNumber','projectId','jobStatus','appointmentStatus',
                         'soldById','jobTypeId','businessUnitId','invoiceId','createdBefore','createdOnOrAfter',
                         'modifiedBefore','modifiedOnOrAfter','completedOnOrAfter','completedBefore']
 
-def jobs_api_call(tenant=TENANT_ID,jobNumber=None,projectId=None,jobStatus=None,appointmentStatus=None,
+def jobs_api_call(tenant=TENANT_ID,id=None,number=None,projectId=None,jobStatus=None,appointmentStatus=None,
                   firstAppointmentStartsOnOrAfter=None,firstAppointmentStartsBefore=None,appointmentStartsOnOrAfter=None,
                   technicianId=None,customerId=None,locationId=None,soldById=None,jobTypeId=None,businessUnitId=None,
                   invoiceId=None,createdBefore=None,createdOnOrAfter=None,modifiedBefore=None,modifiedOnOrAfter=None,
                   completedOnOrAfter=None,completedBefore=None):
-    JOBSAPIFILTERS = [jobNumber,projectId,jobStatus,appointmentStatus,firstAppointmentStartsOnOrAfter,
+    JOBSAPIFILTERS = [id,number,projectId,jobStatus,appointmentStatus,firstAppointmentStartsOnOrAfter,
                       firstAppointmentStartsBefore,appointmentStartsOnOrAfter,technicianId,customerId,locationId,
                       soldById,jobTypeId,businessUnitId,invoiceId,createdBefore,createdOnOrAfter,
                       modifiedBefore,modifiedOnOrAfter,completedOnOrAfter,completedBefore]
@@ -167,7 +167,7 @@ def jobs_api_call(tenant=TENANT_ID,jobNumber=None,projectId=None,jobStatus=None,
     hasMore = True
     data = []
     try:
-        while hasMore and (count < 100):
+        while hasMore and (count < 10):
             url = baseurl + f"&page={page}"
             print(url)
             resp = requests.get(url, headers=headers)
