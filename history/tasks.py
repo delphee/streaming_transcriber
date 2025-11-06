@@ -2,6 +2,9 @@ from django.utils import timezone
 from history.st_api import jobs_api_call, appointment_assignments_api_call
 from history.models import DispatchJob, HistoryJob
 from streaming.models import UserProfile
+from django_q.models import Task
+from datetime import timedelta
+
 
 def pollA():
     try:
@@ -119,6 +122,6 @@ def pollB():    # A less-frequent polling to catch any job completions that didn
                     d_job.polling_active = True
                     d_job.active = True
                     d_job.save()
-
+        Task.objects.filter(stamp__lt=timezone.now() - timedelta(days=7)).delete()
     except Exception as e:
         print(f"PollB failed: {e}")
