@@ -131,17 +131,17 @@ def invoices_api_call(tenant,ids=None,statuses=None,jobId=None,jobNumber=None,bu
         return []
     return data
 
-JOBSAPIFILTERSTRINGS = ['id','number','projectId','jobStatus','appointmentStatus','firstAppointmentStartsOnOrAfter',
+JOBSAPIFILTERSTRINGS = ['ids','number','projectId','jobStatus','appointmentStatus','firstAppointmentStartsOnOrAfter',
                         'firstAppointmentStartsBefore','appointmentStartsOnOrAfter','technicianId','customerId','locationId',
                         'soldById','jobTypeId','businessUnitId','invoiceId','createdBefore','createdOnOrAfter',
                         'modifiedBefore','modifiedOnOrAfter','completedOnOrAfter','completedBefore']
 
-def jobs_api_call(tenant=TENANT_ID,id=None,number=None,projectId=None,jobStatus=None,appointmentStatus=None,
+def jobs_api_call(tenant=TENANT_ID,ids=None,number=None,projectId=None,jobStatus=None,appointmentStatus=None,
                   firstAppointmentStartsOnOrAfter=None,firstAppointmentStartsBefore=None,appointmentStartsOnOrAfter=None,
                   technicianId=None,customerId=None,locationId=None,soldById=None,jobTypeId=None,businessUnitId=None,
                   invoiceId=None,createdBefore=None,createdOnOrAfter=None,modifiedBefore=None,modifiedOnOrAfter=None,
                   completedOnOrAfter=None,completedBefore=None):
-    JOBSAPIFILTERS = [id,number,projectId,jobStatus,appointmentStatus,firstAppointmentStartsOnOrAfter,
+    JOBSAPIFILTERS = [ids,number,projectId,jobStatus,appointmentStatus,firstAppointmentStartsOnOrAfter,
                       firstAppointmentStartsBefore,appointmentStartsOnOrAfter,technicianId,customerId,locationId,
                       soldById,jobTypeId,businessUnitId,invoiceId,createdBefore,createdOnOrAfter,
                       modifiedBefore,modifiedOnOrAfter,completedOnOrAfter,completedBefore]
