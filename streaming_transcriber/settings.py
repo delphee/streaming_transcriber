@@ -191,7 +191,7 @@ if PRODUCTION:
         'workers': 4,
         'recycle': 500,
         'timeout': 60,
-        'retry': 120,
+        'retry': -1,
         'compress': True,
         'save_limit': 250,
         'queue_limit': 50,
