@@ -11,7 +11,7 @@ from django_q.tasks import async_task
 # Create your views here.
 
 
-
+@csrf_exempt
 def check_tech_status(request):
     # Get token from header
     auth_header = request.headers.get('Authorization', '')
