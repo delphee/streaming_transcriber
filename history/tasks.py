@@ -21,7 +21,7 @@ def pollA():
                 d_job.active = False
                 d_job.save()
                 continue
-            appointment_assignments = appointment_assignments_api_call(appointmentIds=d_job.appointmentId)
+            appointment_assignments = appointment_assignments_api_call(appointmentIds=d_job.appointment_id)
             if len(appointment_assignments)==0:
                 # Appointment canceled
                 d_job.active = False
