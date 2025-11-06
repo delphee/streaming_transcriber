@@ -122,6 +122,7 @@ def pollB():    # A less-frequent polling to catch any job completions that didn
                     d_job.polling_active = True
                     d_job.active = True
                     d_job.save()
-        Task.objects.filter(stamp__lt=timezone.now() - timedelta(days=7)).delete()
+        cutoff = timezone.now() - timedelta(days=7)
+        Task.objects.filter(stopped__lt=cutoff).delete()
     except Exception as e:
         print(f"PollB failed: {e}")
