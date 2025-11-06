@@ -50,7 +50,7 @@ def check_tech_status(request):
 
 
 
-
+@csrf_exempt
 def job_complete(request):
     try:
         body_unicode = request.body.decode('utf-8')
