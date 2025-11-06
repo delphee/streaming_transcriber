@@ -60,7 +60,7 @@ def pollA():
                     d_job.save()
                 elif assignment["status"] == "Working":
                     d_job.status = "Working"    # THIS IS WHAT TRIGGERS RECORDING START; don't set active to False
-                    d_job.polling_active = False
+                    d_job.polling_active = True # Should already be True; iOS polling will set to False when recording starts
                     d_job.save()
                 else:
                     print(f"Assignment error!  status = {assignment['status']}!!")
@@ -122,7 +122,19 @@ def pollB():    # A less-frequent polling to catch any job completions that didn
                     d_job.polling_active = True
                     d_job.active = True
                     d_job.save()
-        cutoff = timezone.now() - timedelta(days=7)
+        cutoff = timezone.now() - timedelta(days=1)
         Task.objects.filter(stopped__lt=cutoff).delete()
     except Exception as e:
         print(f"PollB failed: {e}")
+
+
+def compile_document(job_id):
+    print("Compiling Document...")
+
+
+
+
+
+
+
+
