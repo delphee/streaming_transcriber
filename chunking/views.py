@@ -65,7 +65,7 @@ from .transcription import (
 )
 
 @csrf_exempt
-def receive_webhook(request):
+def receive_webhook(request): # THIS MEANS A TECHNICIAN JUST DISPATCHED TO A JOB
     print("Webhook received")
     jobId = 0
     try:
@@ -83,11 +83,8 @@ def receive_webhook(request):
         jobId = job["id"]
         appointment = data["appointment"]
         appointmentId = appointment["id"]
+        get_dispatched_employees(appointmentId)
         appointmentNumber = appointment["appointmentNumber"]
-        leadSource = job["jobGeneratedLeadSource"]
-        leadSourceId = None
-        if "employeeId" in leadSource:
-            leadSourceId = leadSource["employeeId"]
         print(f"Webhook for job {jobId}, appointment {appointmentId}")
     except Exception as e:
         print(f"Webhook data error: {e}")
@@ -101,9 +98,13 @@ def get_dispatched_employees(appointmentId):
             assignments = appointment_assignments_api_call(appointmentIds=appointmentId)
             for assignment in assignments:
                 if assignment["technicianId"] in techusers:
-                    obj, created = DispatchJob.objects.get_or_create(active=True, appointmentId=appointmentId, tech_id=assignment["technicianId"],job_id=str(assignment["jobId"]))
-                    if created:
-                        obj.polling_active = False
+                    DispatchJob.objects.get_or_create(
+                        active=True,
+                        appointmentId=str(appointmentId),
+                        tech_id=assignment["technicianId"],
+                        job_id=str(assignment["jobId"]),
+                        defaults={"status": "Dispatched","polling_active": True}
+                    )
     except Exception as e:
         print(f"Error getting dispatched employees: {e}")
 

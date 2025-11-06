@@ -9,16 +9,17 @@ class AccessToken(models.Model):
 
 
 class DispatchJob(models.Model):
+    status_choices = (
+        ('Scheduled','Scheduled'),('Dispatched', 'Dispatched'),('Working', 'Working'),('Done', 'Done')
+    )
     job_id = models.CharField(max_length=50)
     appointment_id = models.CharField(max_length=50)
     tech_id = models.CharField(max_length=50)
     active = models.BooleanField(default=True)
     last_updated = models.DateTimeField(auto_now=True)
+    status = models.CharField(max_length=20, choices=status_choices)
     polling_active = models.BooleanField(default=True)
-    '''
-    TODO:
-    Am I missing status above?  Look at usage in chunking/views; deal with status
-    '''
+
     def __str__(self):
         return f"{self.job_id} - {self.appointment_id} {'Polling...' if self.polling_active else ''}"
 
