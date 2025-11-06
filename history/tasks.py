@@ -11,7 +11,7 @@ def pollA():
         print("pollA...")
         dispatch_jobs = DispatchJob.objects.filter(active=True)
         for d_job in dispatch_jobs:
-            jobs = jobs_api_call(id=d_job.job_id)
+            jobs = jobs_api_call(ids=d_job.job_id)
             if len(jobs)==0:
                 # Job was deleted
                 d_job.delete()
