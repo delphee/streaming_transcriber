@@ -7,18 +7,13 @@ from history.models import DeviceToken
 logger = logging.getLogger(__name__)
 
 
-async def send_tech_status_push_async(user_id, new_status, data=None):
+async def send_tech_status_push_async(device_tokens, new_status, job_id, data=None):
     """
     Send silent push notification for tech status update
+    device_tokens: list of device token strings
     """
-    # Get user's device tokens
-    device_tokens = DeviceToken.objects.filter(
-        user_id=user_id,
-        platform='ios'
-    ).values_list('device_token', flat=True)
-
     if not device_tokens:
-        logger.info(f"No device tokens found for user {user_id}")
+        logger.info(f"No device tokens provided")
         return
 
     # Check if we have credentials
@@ -41,6 +36,7 @@ async def send_tech_status_push_async(user_id, new_status, data=None):
             "content-available": 1,  # This makes it SILENT
         },
         "result": new_status,
+        "job_id": job_id,
     }
 
     if data:
@@ -64,11 +60,18 @@ async def send_tech_status_push_async(user_id, new_status, data=None):
     await client.close()
 
 
-def send_push_task(user_id, new_status, data=None):
+def send_push_task(user_id, new_status, job_id, data=None):
     """
     Django-Q task function - runs async code
     """
-    asyncio.run(send_tech_status_push_async(user_id, new_status, data))
+    # Fetch device tokens in sync context BEFORE entering async
+    device_tokens = list(DeviceToken.objects.filter(
+        user_id=user_id,
+        platform='ios'
+    ).values_list('device_token', flat=True))
+
+    # Pass tokens to async function
+    asyncio.run(send_tech_status_push_async(device_tokens, new_status, job_id, data))
 
 
 def send_tech_status_push(user, new_status, data=None, job_id=0):
@@ -82,6 +85,7 @@ def send_tech_status_push(user, new_status, data=None, job_id=0):
         'history.push_notifications.send_push_task',
         user.id,
         new_status,
+        job_id,
         data
     )
-    logger.info(f"📤 Queued push notification for user {user.id}, status {new_status}")
+    logger.info(f"📤 Queued push notification for user {user.id}, status {new_status}, job {job_id}")
