@@ -7,18 +7,18 @@ from history.models import DeviceToken
 logger = logging.getLogger(__name__)
 
 
-async def send_tech_status_push_async(user, new_status, data=None):
+async def send_tech_status_push_async(user_id, new_status, data=None):
     """
     Send silent push notification for tech status update
     """
     # Get user's device tokens
     device_tokens = DeviceToken.objects.filter(
-        user=user,
+        user_id=user_id,
         platform='ios'
     ).values_list('device_token', flat=True)
 
     if not device_tokens:
-        logger.info(f"No device tokens found for user {user.id}")
+        logger.info(f"No device tokens found for user {user_id}")
         return
 
     # Check if we have credentials
@@ -64,13 +64,24 @@ async def send_tech_status_push_async(user, new_status, data=None):
     await client.close()
 
 
+def send_push_task(user_id, new_status, data=None):
+    """
+    Django-Q task function - runs async code
+    """
+    asyncio.run(send_tech_status_push_async(user_id, new_status, data))
+
+
 def send_tech_status_push(user, new_status, data=None):
     """
-    Synchronous wrapper for sending push notifications
+    Queue push notification as background task
     Call this from your Django views
     """
-    try:
-        # Run the async function
-        asyncio.run(send_tech_status_push_async(user, new_status, data))
-    except Exception as e:
-        logger.error(f"Error sending push notification: {e}")
+    from django_q.tasks import async_task
+
+    async_task(
+        'history.push_notifications.send_push_task',
+        user.id,
+        new_status,
+        data
+    )
+    logger.info(f"📤 Queued push notification for user {user.id}, status {new_status}")

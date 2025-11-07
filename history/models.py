@@ -18,7 +18,9 @@ class DispatchJob(models.Model):
     active = models.BooleanField(default=True)
     last_updated = models.DateTimeField(auto_now=True)
     status = models.CharField(max_length=20, choices=status_choices)
-    polling_active = models.BooleanField(default=True)
+    polling_active = models.BooleanField(default=True, help_text="Server is polling ST for 'Working' status")
+    recording_active = models.BooleanField(default=False, help_text="iOS has acknowledged server's 'Working' push notification")
+    recording_stopped = models.BooleanField(default=False, help_text="iOS has acknowledged server's 'Done' push notification")
 
     def __str__(self):
         return f"{self.job_id} - {self.appointment_id} {'Polling...' if self.polling_active else ''}"

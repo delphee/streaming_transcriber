@@ -38,12 +38,12 @@ def check_tech_status(request):
     tech_id = user_profile.st_id
     dispatch_jobs = DispatchJob.objects.filter(tech_id=tech_id, active=True)
     if len(dispatch_jobs) == 0:
-        send_tech_status_push(user, 0)
+        #send_tech_status_push(user, 0)
         return JsonResponse({"result":0,}, status=200) # 0 means take no action, but if recording should stop
     dispatch_job = dispatch_jobs[0]
     if dispatch_job.status=="Working":
         dispatch_job.save()
-        send_tech_status_push(user, 1)
+        #send_tech_status_push(user, 1)
         return JsonResponse({"result":1,}, status=200) # 1 means start recording
     if dispatch_job.status=="Dispatched":
         history_jobs = HistoryJob.objects.filter(job_id=dispatch_job.job_id, appointment_id=dispatch_job.appointment_id)
@@ -53,11 +53,11 @@ def check_tech_status(request):
             #
             HistoryJob.objects.create(job_id=dispatch_job.job_id, appointment_id=dispatch_job.appointment_id)
             async_task("history.tasks.compile_document", dispatch_job.job_id)
-            send_tech_status_push(user, 2)
+            #send_tech_status_push(user, 2)
             return JsonResponse({"result":2,}, status=200) # 2 means history has been triggered (may be unnecessary)
         history_job = history_jobs[0]
         if history_job.ready:
-            send_tech_status_push(user, 3, data=history_job.data)
+            #send_tech_status_push(user, 3, data=history_job.data)
             return JsonResponse({"result":3, "data":history_job.data}, status=200)
 
 
