@@ -2,6 +2,18 @@ from django.db import models
 from django.contrib.auth.models import User
 # Create your models here.
 
+TECHS = {
+    "3027961":"Ethan Ficklin",
+    "190999251":"Kevin Stanley",
+    "3027975":"Ronnie Bland",
+    "162915344":"Brett Allen",
+    "141471729":"Josue Rodriguez",
+    "383003734":"AJ Ruths",
+    "128166026":"Jake West"
+}
+
+
+
 
 class AccessToken(models.Model):
     token =models.TextField()
@@ -23,7 +35,7 @@ class DispatchJob(models.Model):
     recording_stopped = models.BooleanField(default=False, help_text="iOS has acknowledged server's 'Done' push notification")
 
     def __str__(self):
-        return f"{self.job_id} - {self.appointment_id} {'Polling...' if self.polling_active else ''}"
+        return f"{self.job_id} - {self.appointment_id} {'Polling...' if self.polling_active else ''} {TECHS[self.tech_id] if self.tech_id in TECHS else ''}"
 
 
 class HistoryJob(models.Model):
