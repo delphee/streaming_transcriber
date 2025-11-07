@@ -22,6 +22,10 @@ async def send_tech_status_push_async(device_tokens, new_status, job_id, data=No
         logger.error("APNS credentials not configured")
         return []
 
+    # Log which environment we're using
+    env = "SANDBOX" if settings.APNS_USE_SANDBOX else "PRODUCTION"
+    logger.info(f"🔧 Using APNs {env} environment with {len(device_tokens)} token(s)")
+
     # Create APNs client
     client = APNs(
         key=settings.APNS_KEY_CONTENT,
