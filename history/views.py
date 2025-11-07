@@ -35,7 +35,7 @@ def check_tech_status(request):
         return JsonResponse({'error': 'Invalid token'}, status=401)
 
     user_profile = UserProfile.objects.get(user=user)
-    tech_id = user_profile.tech_id
+    tech_id = user_profile.st_id
     dispatch_jobs = DispatchJob.objects.filter(tech_id=tech_id, active=True)
     if len(dispatch_jobs) == 0:
         send_tech_status_push(user, 0)
