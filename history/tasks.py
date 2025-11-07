@@ -78,8 +78,9 @@ def pollB():    # A less-frequent polling to catch any job completions that didn
         print("10 minute poll...")
         dispatch_jobs = DispatchJob.objects.filter(active=True, status="Working")
         for d_job in dispatch_jobs:
-            jobs = jobs_api_call(ids=d_job.id)
+            jobs = jobs_api_call(ids=d_job.job_id)
             if len(jobs) == 0:
+                print(f"Job {d_job.job_id} not found; setting status to 'Done'")
                 # Job was deleted (?) but recording may have started already
                 d_job.status="Done"
                 d_job.active = False
@@ -95,7 +96,7 @@ def pollB():    # A less-frequent polling to catch any job completions that didn
             appointment_assignments = appointment_assignments_api_call(appointmentIds=d_job.appointment_id)
             if len(appointment_assignments) == 0:
                 # Appointment canceled, but recording may have started already
-                print(f"Appointment canceled (?) for job {job.id}")
+                print(f"Appointment canceled (?) for job {d_job.job_id}")
                 d_job.status = "Done"
                 d_job.active = False
                 d_job.save()
