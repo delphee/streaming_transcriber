@@ -38,7 +38,7 @@ def pollA():
                 #
                 #   In the case of multiple techs, we need to be working with the right assignment for the d_job tech_id
                 #
-                if assignment["technicianId"] != d_job.tech_id:
+                if str(assignment["technicianId"]) != d_job.tech_id:
                     continue
 
                 if assignment["status"] == "Dispatched":
