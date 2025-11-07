@@ -35,6 +35,9 @@ class DispatchJob(models.Model):
     polling_active = models.BooleanField(default=True, help_text="Server is polling ST for 'Working' status")
     recording_active = models.BooleanField(default=False, help_text="iOS has acknowledged server's 'Working' push notification")
     recording_stopped = models.BooleanField(default=False, help_text="iOS has acknowledged server's 'Done' push notification")
+    notified_working = models.BooleanField(default=False, help_text="Push sent for status=Working (result:1)")
+    notified_done = models.BooleanField(default=False, help_text="Push sent for status=Done (result:2)")
+    notified_history = models.BooleanField(default=False, help_text="Push sent for history ready (result:3)")
 
     def __str__(self):
         return f"{self.job_id} - {self.appointment_id} {'Polling...' if self.polling_active else ''} {TECHS[self.tech_id] if self.tech_id in TECHS else ''}"
