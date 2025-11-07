@@ -10,7 +10,7 @@ from django_q.tasks import async_task
 
 # Create your views here.
 
-
+# ENDPOINT FOR iOS TO CHECK IF TECH HAS ARRIVED, or DONE
 @csrf_exempt
 def check_tech_status(request):
     # Get token from header
