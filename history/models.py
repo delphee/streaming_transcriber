@@ -9,7 +9,9 @@ TECHS = {
     "162915344":"Brett Allen",
     "141471729":"Josue Rodriguez",
     "383003734":"AJ Ruths",
-    "128166026":"Jake West"
+    "128166026":"Jake West",
+    "356406954":"Michael Ouden Jr",
+    "384234754":"Christopher Franklin",
 }
 
 
