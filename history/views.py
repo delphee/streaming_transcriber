@@ -174,3 +174,79 @@ def register_device_token(request):
         response['expires_at'] = (timezone.now() + TOKEN_LIFETIME).isoformat()
 
     return JsonResponse(response, status=200)
+
+
+@csrf_exempt
+def confirm_notification(request):
+    """
+    iOS confirms receipt of push notification
+    POST body: {"job_id": "12345", "result": 1}
+    result: 1=Working, 2=Done, 3=History Ready
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    # Get token from header
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return JsonResponse({'error': 'Invalid authorization header'}, status=401)
+
+    token = auth_header.split(' ')[1]
+    user = get_user_from_token(token)
+
+    if not user:
+        return JsonResponse({'error': 'Invalid token'}, status=401)
+
+    # Parse request body
+    try:
+        body = json.loads(request.body.decode('utf-8'))
+        job_id = body.get('job_id')
+        result = body.get('result')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid JSON body'}, status=400)
+
+    if not job_id or result not in [1, 2, 3]:
+        return JsonResponse({'error': 'Missing or invalid job_id or result'}, status=400)
+
+    # Get user's tech_id
+    try:
+        user_profile = UserProfile.objects.get(user=user)
+        tech_id = user_profile.st_id
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'error': 'User profile not found'}, status=404)
+
+    # Find the DispatchJob
+    try:
+        dispatch_job = DispatchJob.objects.get(job_id=str(job_id), tech_id=tech_id)
+    except DispatchJob.DoesNotExist:
+        return JsonResponse({'error': 'Job not found'}, status=404)
+
+    # Update the appropriate confirmation field
+    if result == 1:
+        dispatch_job.recording_active = True
+        dispatch_job.polling_active = False  # Stop polling once iOS confirms
+        dispatch_job.save()
+        return JsonResponse({'status': 'success', 'confirmed': 'working'}, status=200)
+
+    elif result == 2:
+        dispatch_job.recording_stopped = True
+        dispatch_job.save()
+        return JsonResponse({'status': 'success', 'confirmed': 'done'}, status=200)
+
+    elif result == 3:
+        # iOS acknowledges history is ready
+        dispatch_job.save()
+        return JsonResponse({'status': 'success', 'confirmed': 'history'}, status=200)
+
+    return JsonResponse({'error': 'Unknown error'}, status=500)
+
+
+
+
+
+
+
+
+
+
+

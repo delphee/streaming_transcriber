@@ -40,7 +40,7 @@ async def send_tech_status_push_async(user_id, new_status, data=None):
         "aps": {
             "content-available": 1,  # This makes it SILENT
         },
-        "tech_status": new_status,
+        "result": new_status,
     }
 
     if data:
@@ -71,7 +71,7 @@ def send_push_task(user_id, new_status, data=None):
     asyncio.run(send_tech_status_push_async(user_id, new_status, data))
 
 
-def send_tech_status_push(user, new_status, data=None):
+def send_tech_status_push(user, new_status, data=None, job_id=0):
     """
     Queue push notification as background task
     Call this from your Django views
