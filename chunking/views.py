@@ -102,7 +102,7 @@ def get_dispatched_employees(appointmentId):
                 if str(assignment["technicianId"]) in techusers:
                     DispatchJob.objects.get_or_create(
                         active=True,
-                        appointmentId=str(appointmentId),
+                        appointment_id=str(appointmentId),
                         tech_id=assignment["technicianId"],
                         job_id=str(assignment["jobId"]),
                         defaults={"status": "Dispatched","polling_active": True}
