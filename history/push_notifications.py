@@ -79,6 +79,11 @@ def send_tech_status_push(user, new_status, data=None, job_id=0):
     Queue push notification as background task
     Call this from your Django views
     """
+    # Check if user has any device tokens before queuing
+    if not DeviceToken.objects.filter(user=user, platform='ios').exists():
+        logger.info(f"⚠️ No device tokens found for user {user.id}, skipping push notification")
+        return
+
     from django_q.tasks import async_task
 
     async_task(

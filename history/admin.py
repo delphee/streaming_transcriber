@@ -6,3 +6,4 @@ from .models import *
 
 admin.site.register(HistoryJob)
 admin.site.register(DispatchJob)
+admin.site.register(DeviceToken)
