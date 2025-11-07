@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os, ssl
+import base64
 
 print("Reading settings...")
 
@@ -58,6 +59,17 @@ else:
     ST_CLIENT_ID = os.environ.get('ST_CLIENT_ID')
     ST_CLIENT_SECRET = os.environ.get('ST_CLIENT_SECRET')
     TENANT_ID = os.environ.get('TENANT_ID')
+    APNS_KEY_ID = os.environ.get('APNS_KEY_ID')
+    APNS_TEAM_ID = os.environ.get('APNS_TEAM_ID')
+    APNS_BUNDLE_ID = os.environ.get('APNS_BUNDLE_ID')
+    APNS_USE_SANDBOX = os.environ.get('APNS_USE_SANDBOX', 'True') == 'True'
+
+    # Decode base64 key at runtime
+    APNS_KEY_BASE64 = os.environ.get('APNS_KEY_BASE64')
+    if APNS_KEY_BASE64:
+        APNS_KEY_CONTENT = base64.b64decode(APNS_KEY_BASE64).decode('utf-8')
+    else:
+        APNS_KEY_CONTENT = None
 
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 AWS_S3_FILE_OVERWRITE = False  # Don't overwrite files with same name
@@ -100,6 +112,7 @@ PRELIMINARY_TRANSCRIPTION_BATCH_SIZE = 4  # 4 chunks × 30s = 2 minutes
 # Allow larger file uploads for audio chunks
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB in bytes
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB in bytes
+
 
 # Application definition
 
