@@ -66,7 +66,7 @@ from .transcription import (
 
 @csrf_exempt
 def receive_webhook(request): # THIS MEANS A TECHNICIAN JUST DISPATCHED TO A JOB
-    print("Webhook received")
+    print("Technician Dispatched Webhook received")
     jobId = 0
     try:
         body_unicode = request.body.decode('utf-8')
@@ -93,11 +93,13 @@ def receive_webhook(request): # THIS MEANS A TECHNICIAN JUST DISPATCHED TO A JOB
 
 def get_dispatched_employees(appointmentId):
     try:
+        text = "No DispatchJob created"
         techusers = [str(o.st_id) for o in UserProfile.objects.all()]
         if appointmentId:
             assignments = appointment_assignments_api_call(appointmentIds=appointmentId)
             for assignment in assignments:
-                if assignment["technicianId"] in techusers:
+                print(f"Found appointment assignment for {assignment['technicianId']}")
+                if str(assignment["technicianId"]) in techusers:
                     DispatchJob.objects.get_or_create(
                         active=True,
                         appointmentId=str(appointmentId),
@@ -105,6 +107,8 @@ def get_dispatched_employees(appointmentId):
                         job_id=str(assignment["jobId"]),
                         defaults={"status": "Dispatched","polling_active": True}
                     )
+                    text = "Created DispatchJob!"
+        print(text)
     except Exception as e:
         print(f"Error getting dispatched employees: {e}")
 
