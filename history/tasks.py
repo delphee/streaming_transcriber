@@ -49,6 +49,7 @@ def pollA():
                     d_job.polling_active = True
                     d_job.save()
                 elif assignment["status"] == "Done": # THIS CAN TRIGGER RECORDING STOP, BUT pollA shouldn't find this
+                    print(f"Setting DispatchJob status to 'Done' for job {d_job.job_id}")
                     d_job.status = "Done"
                     d_job.polling_active = False
                     d_job.active = False
@@ -59,6 +60,7 @@ def pollA():
                     d_job.active = False
                     d_job.save()
                 elif assignment["status"] == "Working":
+                    print(f"Setting DispatchJob status to 'Working' for job {d_job.job_id}")
                     d_job.status = "Working"    # THIS IS WHAT TRIGGERS RECORDING START; don't set active to False
                     d_job.polling_active = True # Should already be True; iOS polling will set to False when recording starts
                     d_job.save()
@@ -93,6 +95,7 @@ def pollB():    # A less-frequent polling to catch any job completions that didn
             appointment_assignments = appointment_assignments_api_call(appointmentIds=d_job.appointment_id)
             if len(appointment_assignments) == 0:
                 # Appointment canceled, but recording may have started already
+                print(f"Appointment canceled (?) for job {job.id}")
                 d_job.status = "Done"
                 d_job.active = False
                 d_job.save()
@@ -109,15 +112,17 @@ def pollB():    # A less-frequent polling to catch any job completions that didn
                 #
                 #   In the case of multiple techs, we need to be working with the right assignment for the d_job tech_id
                 #
-                if assignment["technicianId"] != d_job.tech_id:
+                if str(assignment["technicianId"]) != d_job.tech_id:
                     continue
                 if assignment["status"] in ["Done","Scheduled"]: # Recording should not be happening; stop it if it is
+                    print(f"Setting DispatchJob status to 'Done' for job {d_job.job_id}")
                     d_job.status = "Done"
                     d_job.polling_active = False
                     d_job.active = False
                     d_job.save()
                     continue
                 if assignment["status"] == "Dispatched": # Tech arrived on wrong job (??) Reset DispatchJob
+                    print(f"Setting DispatchJob status back to 'Dispatched' for job {d_job.job_id}")
                     d_job.status = "Dispatched"
                     d_job.polling_active = True
                     d_job.active = True
