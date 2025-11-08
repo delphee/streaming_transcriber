@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 async def send_tech_status_push_async(device_tokens, new_status, job_id, data=None):
     """
-    Send silent push notification for tech status update
+    Send push notification for tech status update
     device_tokens: list of device token strings
     Returns list of bad tokens to be deleted
     """
@@ -35,10 +35,15 @@ async def send_tech_status_push_async(device_tokens, new_status, job_id, data=No
         use_sandbox=settings.APNS_USE_SANDBOX,
     )
 
-    # Prepare silent push payload
+    # Prepare push payload - VISIBLE for testing
     payload = {
         "aps": {
-            "content-available": 1,  # This makes it SILENT
+            "alert": {
+                "title": "Tech Status Update",
+                "body": f"Status: {new_status}, Job: {job_id}"
+            },
+            "sound": "default",
+            "content-available": 1,
         },
         "result": new_status,
         "job_id": job_id,
@@ -57,20 +62,28 @@ async def send_tech_status_push_async(device_tokens, new_status, job_id, data=No
                 message=payload,
             )
 
-            await client.send_notification(request)
-            logger.info(f"✅ Sent tech status {new_status} to device: {token[:10]}...")
+            response = await client.send_notification(request)
+
+            # Check if the notification was successful
+            if response.is_successful:
+                logger.info(f"✅ Sent tech status {new_status} to device: {token[:10]}...")
+            else:
+                logger.error(f"❌ Failed to send to {token[:10]}: {response.description} (status: {response.status})")
+
+                # Mark bad tokens for deletion (410 = Unregistered, 400 = BadDeviceToken)
+                if response.status in [400, 410]:
+                    bad_tokens.append(token)
+                    logger.warning(f"🗑️ Marking invalid device token for removal: {token[:10]}...")
 
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"❌ Failed to send to {token[:10]}: {e}")
+            logger.error(f"❌ Exception sending to {token[:10]}: {e}")
 
-            # Collect bad tokens to delete later
             if "BadDeviceToken" in error_msg or "Unregistered" in error_msg:
                 bad_tokens.append(token)
-                logger.warning(f"🗑️ Marking invalid device token for removal: {token[:10]}...")
 
+    # await client.close()
     return bad_tokens
-
 
 def send_push_task(user_id, new_status, job_id, data=None):
     """
