@@ -8,6 +8,7 @@ from streaming.models import AuthToken, UserProfile
 from history.models import DeviceToken
 from django.utils import timezone
 from django_q.tasks import async_task
+from django.conf import settings
 from django.views import View
 from django.contrib.auth.models import User
 from datetime import datetime, timedelta
@@ -241,7 +242,185 @@ def confirm_notification(request):
     return JsonResponse({'error': 'Unknown error'}, status=500)
 
 
+@csrf_exempt
+def ai_conversation_query(request):
+    """
+    iOS endpoint for AI-powered job data queries
+    POST body: {
+        "job_data": "string",  # Optional, reserved for future use
+        "query": "What time is the appointment?",
+        "conversation_history": [...]  # Optional
+    }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
 
+    # Get token from header
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return JsonResponse({'success': False, 'error': 'Invalid authorization header'}, status=401)
+
+    token = auth_header.split(' ')[1]
+    user = get_user_from_token(token)
+
+    if not user:
+        return JsonResponse({'success': False, 'error': 'Invalid token'}, status=401)
+
+    # Parse request body
+    try:
+        body = json.loads(request.body.decode('utf-8'))
+        query = body.get('query')
+        job_data = body.get('job_data', '')  # Reserved for future use
+        conversation_history = body.get('conversation_history', [])
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'success': False, 'error': 'Invalid JSON body'}, status=400)
+
+    if not query:
+        return JsonResponse({'success': False, 'error': 'Missing query'}, status=400)
+
+    # Get user's current active job
+    try:
+        user_profile = UserProfile.objects.get(user=user)
+        tech_id = user_profile.st_id
+
+        # Get the active dispatch job for this tech
+        dispatch_job = DispatchJob.objects.filter(tech_id=tech_id, active=True).first()
+
+        if not dispatch_job:
+            return JsonResponse({
+                'success': False,
+                'error': 'No active job found'
+            }, status=404)
+
+        # Check if AI document is ready
+        if not dispatch_job.ai_document_built or not dispatch_job.ai_document_s3_key:
+            return JsonResponse({
+                'success': False,
+                'error': 'Job document not ready yet. Please try again in a moment.'
+            }, status=202)  # 202 Accepted - processing
+
+        # Fetch document from S3
+        job_document = fetch_document_from_s3(dispatch_job.ai_document_s3_key)
+
+        if not job_document:
+            return JsonResponse({
+                'success': False,
+                'error': 'Unable to retrieve job document'
+            }, status=500)
+
+        # Query AI with the document and conversation history
+        ai_response = query_ai_service(
+            job_document=job_document,
+            user_query=query,
+            conversation_history=conversation_history
+        )
+
+        return JsonResponse({
+            'success': True,
+            'answer': ai_response['answer'],
+            'tokens_used': ai_response['tokens_used'],
+            'timestamp': timezone.now().isoformat()
+        }, status=200)
+
+    except UserProfile.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'User profile not found'}, status=404)
+    except Exception as e:
+        print(f"❌ AI conversation error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+def fetch_document_from_s3(s3_key):
+    """
+    Fetch document content from S3 using presigned URL
+    """
+    from chunking.s3_handler import get_s3_client
+    import requests
+
+    try:
+        s3_client = get_s3_client()
+
+        # Generate presigned download URL (1 hour expiration)
+        presigned_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': settings.AWS_STORAGE_BUCKET_NAME,
+                'Key': s3_key
+            },
+            ExpiresIn=3600
+        )
+
+        # Download the document
+        response = requests.get(presigned_url)
+
+        if response.status_code == 200:
+            return response.text
+        else:
+            print(f"❌ Failed to fetch document from S3: {response.status_code}")
+            return None
+
+    except Exception as e:
+        print(f"❌ Error fetching document from S3: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def query_ai_service(job_document, user_query, conversation_history=None):
+    """
+    Query AI service with job document and conversation history
+    Designed to be easily swappable with other AI services
+
+    Returns: {
+        'answer': str,
+        'tokens_used': int
+    }
+    """
+    from openai import OpenAI
+
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+
+    # Build messages for the conversation
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a helpful assistant for field service technicians. "
+                "You have access to job and customer information. "
+                "Provide accurate, concise, and helpful answers. "
+                "If information is not available in the job data, say so politely. "
+                "Keep responses brief and actionable - the technician is likely driving or preparing for the job."
+            )
+        },
+        {
+            "role": "system",
+            "content": f"Here is the current job information:\n\n{job_document}"
+        }
+    ]
+
+    # Add conversation history if provided
+    if conversation_history:
+        messages.extend(conversation_history)
+
+    # Add current query
+    messages.append({
+        "role": "user",
+        "content": user_query
+    })
+
+    # Call OpenAI
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=messages,
+        temperature=0.7,
+        max_tokens=500
+    )
+
+    return {
+        'answer': response.choices[0].message.content,
+        'tokens_used': response.usage.total_tokens
+    }
 
 
 

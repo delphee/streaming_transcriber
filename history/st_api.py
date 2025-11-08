@@ -83,7 +83,7 @@ def technicians_api_call(tenant=TENANT_ID,ids=None,name=None,active=None,created
 
 INVOICESAPIFILTERSTRINGS = ['ids','statuses','jobId','jobNumber','businessUnitId','customerId','invoicedOnOrAfter',
                             'invoicedOnOrBefore','number','createdOnOrAfter','createdBefore']
-def invoices_api_call(tenant,ids=None,statuses=None,jobId=None,jobNumber=None,businessUnitId=None,customerId=None,
+def invoices_api_call(tenant=TENANT_ID,ids=None,statuses=None,jobId=None,jobNumber=None,businessUnitId=None,customerId=None,
                       invoicedOnOrAfter=None,invoicedOnOrBefore=None,number=None,createdOnOrAfter=None,
                       createdBefore=None):
     urltext = ""

@@ -33,7 +33,7 @@ from django.db.models import Q, Count
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
-
+from django_q.tasks import async_task
 from .models import ChunkedConversation, Speaker, TranscriptSegment
 from streaming.models import User
 from history.models import DispatchJob
@@ -83,8 +83,8 @@ def receive_webhook(request): # THIS MEANS A TECHNICIAN JUST DISPATCHED TO A JOB
         jobId = job["id"]
         appointment = data["appointment"]
         appointmentId = appointment["id"]
-        get_dispatched_employees(appointmentId)
-        appointmentNumber = appointment["appointmentNumber"]
+        if get_dispatched_employees(appointmentId):
+            print("Initiate background document contruction here! Send customerId, etc.")
         print(f"Webhook for job {jobId}, appointment {appointmentId}")
     except Exception as e:
         print(f"Webhook data error: {e}")
@@ -92,6 +92,7 @@ def receive_webhook(request): # THIS MEANS A TECHNICIAN JUST DISPATCHED TO A JOB
     return HttpResponse(status=200)
 
 def get_dispatched_employees(appointmentId):
+    ios_user = False
     try:
         text = "No DispatchJob created"
         techusers = [str(o.st_id) for o in UserProfile.objects.all()]
@@ -100,18 +101,24 @@ def get_dispatched_employees(appointmentId):
             for assignment in assignments:
                 print(f"Found appointment assignment for {assignment['technicianId']}")
                 if str(assignment["technicianId"]) in techusers:
-                    DispatchJob.objects.get_or_create(
+                    dispatch_job, created = DispatchJob.objects.get_or_create(
                         active=True,
                         appointment_id=str(appointmentId),
                         tech_id=assignment["technicianId"],
                         job_id=str(assignment["jobId"]),
                         defaults={"status": "Dispatched","polling_active": True}
                     )
+                    # Trigger AI document building in background
+                    if created:
+                        async_task('history.tasks.build_ai_job_document', dispatch_job.id)
+                        print(f"📄 Queued AI document build for job {dispatch_job.job_id}")
+
                     text = "Created DispatchJob!"
+                    ios_user = True
         print(text)
     except Exception as e:
         print(f"Error getting dispatched employees: {e}")
-
+    return ios_user
 
 def authenticate_request(request):
     print("authenticate_request() is running!......................")

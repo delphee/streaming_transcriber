@@ -39,9 +39,12 @@ class DispatchJob(models.Model):
     notified_working = models.BooleanField(default=False, help_text="Push sent for status=Working (result:1)")
     notified_done = models.BooleanField(default=False, help_text="Push sent for status=Done (result:2)")
     notified_history = models.BooleanField(default=False, help_text="Push sent for history ready (result:3)")
+    ai_document_s3_key = models.TextField(blank=True, null=True, help_text="S3 key for AI job data document")
+    ai_document_built = models.BooleanField(default=False, help_text="AI document has been built and uploaded to S3")
 
     def __str__(self):
-        return f"{self.job_id} - {self.appointment_id} {'Polling...' if self.polling_active else ''} {TECHS[self.tech_id] if self.tech_id in TECHS else ''}"
+        return (f"{self.job_id} - {self.appointment_id} {'Polling...' if self.polling_active else ''} "
+                f"{TECHS[self.tech_id] if self.tech_id in TECHS else ''} {'DOC' if self.ai_document_built else ''}")
 
 
 class HistoryJob(models.Model):
