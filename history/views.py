@@ -270,7 +270,7 @@ def ai_conversation_query(request):
     try:
         body = json.loads(request.body.decode('utf-8'))
         query = body.get('query')
-        job_data = body.get('job_data', '')  # Reserved for future use
+        appointment_id = body.get('appointment_id', '')  # Reserved for future use
         conversation_history = body.get('conversation_history', [])
     except (json.JSONDecodeError, UnicodeDecodeError):
         return JsonResponse({'success': False, 'error': 'Invalid JSON body'}, status=400)
@@ -284,7 +284,7 @@ def ai_conversation_query(request):
         tech_id = user_profile.st_id
 
         # Get the active dispatch job for this tech
-        dispatch_job = DispatchJob.objects.filter(tech_id=tech_id, active=True).first()
+        dispatch_job = DispatchJob.objects.filter(tech_id=tech_id, appointment_id=appointment_id).first()
 
         if not dispatch_job:
             return JsonResponse({
