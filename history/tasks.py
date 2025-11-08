@@ -212,6 +212,21 @@ def build_ai_job_document(dispatch_job_id):
 
         print(f"✅ AI document built and uploaded: {s3_key}")
 
+        # Send push notification to user that document is ready
+        try:
+            user_profile = UserProfile.objects.get(st_id=dispatch_job.tech_id)
+            user = user_profile.user
+
+            # Send notification - reusing result:3 (or we can create result:4 for AI doc ready)
+            send_tech_status_push(user, 3, appointment_id=dispatch_job.appointment_id)
+            dispatch_job.notified_history = True  # Reusing this flag
+            dispatch_job.save()
+            print(f"📱 Sent AI document ready notification (result:3) for job {dispatch_job.job_id} appointment {dispatch_job.appointment_id}")
+        except UserProfile.DoesNotExist:
+            print(f"⚠️ No user profile found for tech_id {dispatch_job.tech_id}")
+
+
+
     except DispatchJob.DoesNotExist:
         print(f"❌ DispatchJob {dispatch_job_id} not found")
     except Exception as e:
