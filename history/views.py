@@ -425,7 +425,8 @@ def query_ai_service(job_document, user_query, conversation_history=None):
 
 
 @csrf_exempt
-def testing(request, dispatchJob_job_id):
+def testing(request):
+    dispatchJob_job_id = "402956116"
     print("Testing!")
     dispatch_job = DispatchJob.objects.get(job_id=dispatchJob_job_id)
     dispatch_job_id = dispatch_job.id
