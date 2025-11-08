@@ -424,8 +424,10 @@ def query_ai_service(job_document, user_query, conversation_history=None):
 
 
 
-
-
-
-
+@csrf_exempt
+def testing(request, dispatchJob_job_id):
+    print("Testing!")
+    dispatch_job = DispatchJob.objects.get(job_id=dispatchJob_job_id)
+    dispatch_job_id = dispatch_job.id
+    async_task('history.tasks.build_ai_job_document', dispatch_job_id)
 

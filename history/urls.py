@@ -10,5 +10,9 @@ urlpatterns = [
     path('api/register-device-token/', views.register_device_token, name='register_device_token'),
     path('api/confirm-notification/', views.confirm_notification, name='confirm_notification'),
     path('api/ai-conversation/query/', views.ai_conversation_query, name='ai_conversation_query'),
-
+    path('api/testing/', views.testing, name='testing')
     ]
+
+
+
+
