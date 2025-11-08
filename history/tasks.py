@@ -311,7 +311,7 @@ def upload_document_to_s3(document_content, job_id, appointment_id):
 
 def get_invoices(customer_id):
     print(f"Getting invoices for customer {customer_id}")
-    one_year_ago = timezone.now() - timedelta(days=365)
+    one_year_ago = timezone.now() - timedelta(days=365*7)
     formatted_date = one_year_ago.strftime("%Y-%m-%d")
     invoices = invoices_api_call(invoicedOnOrAfter=formatted_date, customerId=customer_id)
     invoice_string = "Previous_Jobs_Done: "
