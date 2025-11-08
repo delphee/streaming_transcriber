@@ -7,7 +7,7 @@ from history.models import DeviceToken
 logger = logging.getLogger(__name__)
 
 
-async def send_tech_status_push_async(device_tokens, new_status, job_id, data=None):
+async def send_tech_status_push_async(device_tokens, new_status, appointment_id, data=None):
     """
     Send push notification for tech status update
     device_tokens: list of device token strings
@@ -40,13 +40,13 @@ async def send_tech_status_push_async(device_tokens, new_status, job_id, data=No
         "aps": {
             "alert": {
                 "title": "Tech Status Update",
-                "body": f"Status: {new_status}, Job: {job_id}"
+                "body": f"Status: {new_status}, Appointment: {appointment_id}"
             },
             "sound": "default",
             "content-available": 1,
         },
         "result": new_status,
-        "job_id": job_id,
+        "appointment_id": appointment_id,
     }
 
     if data:
@@ -85,7 +85,7 @@ async def send_tech_status_push_async(device_tokens, new_status, job_id, data=No
     # await client.close()
     return bad_tokens
 
-def send_push_task(user_id, new_status, job_id, data=None):
+def send_push_task(user_id, new_status, appointment_id, data=None):
     """
     Django-Q task function - runs async code
     """
@@ -96,7 +96,7 @@ def send_push_task(user_id, new_status, job_id, data=None):
     ).values_list('device_token', flat=True))
 
     # Pass tokens to async function
-    bad_tokens = asyncio.run(send_tech_status_push_async(device_tokens, new_status, job_id, data))
+    bad_tokens = asyncio.run(send_tech_status_push_async(device_tokens, new_status, appointment_id, data))
 
     # Delete bad tokens in sync context
     if bad_tokens:
@@ -104,7 +104,7 @@ def send_push_task(user_id, new_status, job_id, data=None):
         logger.info(f"🗑️ Deleted {deleted_count} invalid device token(s)")
 
 
-def send_tech_status_push(user, new_status, data=None, job_id=0):
+def send_tech_status_push(user, new_status, data=None, appointment_id=0):
     """
     Queue push notification as background task
     Call this from your Django views
@@ -120,7 +120,7 @@ def send_tech_status_push(user, new_status, data=None, job_id=0):
         'history.push_notifications.send_push_task',
         user.id,
         new_status,
-        job_id,
+        appointment_id,
         data
     )
-    logger.info(f"📤 Queued push notification for user {user.id}, status {new_status}, job {job_id}")
+    logger.info(f"📤 Queued push notification for user {user.id}, status {new_status}, appointment {appointment_id}")

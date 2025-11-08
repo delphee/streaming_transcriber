@@ -65,7 +65,7 @@ def pollA():
                     # Check if history is ready and send push if not already notified
                     if history_job.ready and not d_job.notified_history and user:
 
-                        send_tech_status_push(user, 3, data=history_job.data, job_id=d_job.job_id)
+                        send_tech_status_push(user, 3, data=history_job.data, appointment_id=d_job.appointment_id)
                         d_job.notified_history = True
                         d_job.save()
                         print(f"Sent history ready push (result:3) for job {d_job.job_id}")
@@ -79,7 +79,7 @@ def pollA():
                     # Send push notification if not already sent
                     if not d_job.notified_done and user:
 
-                        send_tech_status_push(user, 2, job_id=d_job.job_id)
+                        send_tech_status_push(user, 2, appointment_id=d_job.appointment_id)
                         d_job.notified_done = True
                         print(f"Sent done push (result:2) for job {d_job.job_id}")
 
@@ -99,7 +99,7 @@ def pollA():
                     # Send push notification if not already sent
                     if not d_job.notified_working and user:
 
-                        send_tech_status_push(user, 1, job_id=d_job.job_id)
+                        send_tech_status_push(user, 1, appointment_id=d_job.appointment_id)
                         d_job.notified_working = True
                         print(f"Sent working push (result:1) for job {d_job.job_id}")
 

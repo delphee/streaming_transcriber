@@ -201,12 +201,12 @@ def confirm_notification(request):
     # Parse request body
     try:
         body = json.loads(request.body.decode('utf-8'))
-        job_id = body.get('job_id')
+        appointment_id = body.get('appointment_id')
         result = body.get('result')
     except (json.JSONDecodeError, UnicodeDecodeError):
         return JsonResponse({'error': 'Invalid JSON body'}, status=400)
 
-    if not job_id or result not in [1, 2, 3]:
+    if not appointment_id or result not in [1, 2, 3]:
         return JsonResponse({'error': 'Missing or invalid job_id or result'}, status=400)
 
     # Get user's tech_id
@@ -218,7 +218,7 @@ def confirm_notification(request):
 
     # Find the DispatchJob
     try:
-        dispatch_job = DispatchJob.objects.get(job_id=str(job_id), tech_id=tech_id)
+        dispatch_job = DispatchJob.objects.get(appointment_id=str(appointment_id), tech_id=tech_id)
     except DispatchJob.DoesNotExist:
         return JsonResponse({'error': 'Job not found'}, status=404)
 
