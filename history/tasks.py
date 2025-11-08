@@ -186,10 +186,12 @@ def build_ai_job_document(dispatch_job_id):
     try:
         dispatch_job = DispatchJob.objects.get(id=dispatch_job_id)
 
+
         print(f"Building AI document for job {dispatch_job.job_id}...")
 
         # Construct the document
         document_content = construct_job_document(
+            dispatch_job.customer_id,
             dispatch_job.job_id,
             dispatch_job.appointment_id,
             dispatch_job.tech_id
