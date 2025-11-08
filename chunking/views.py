@@ -108,6 +108,7 @@ def get_dispatched_employees(appointmentId):
                         job_id=str(assignment["jobId"]),
                         defaults={"status": "Dispatched","polling_active": True}
                     )
+                    print(f"Created? {created}")
                     # Trigger AI document building in background
                     if created:
                         async_task('history.tasks.build_ai_job_document', dispatch_job.id)
