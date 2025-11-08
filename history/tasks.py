@@ -189,7 +189,7 @@ def build_ai_job_document(dispatch_job_id):
 
         print(f"Building AI document for job {dispatch_job.job_id}...")
 
-        # Construct the document
+        # Construct the document with these
         document_content = construct_job_document(
             dispatch_job.customer_id,
             dispatch_job.job_id,
