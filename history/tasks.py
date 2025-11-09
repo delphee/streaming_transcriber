@@ -229,6 +229,7 @@ def construct_job_document(customer_id, location_id, job_id=None, appointment_id
     myjson = {}
     myjson = get_customer_info(customer_id, location_id, myjson)
     myjson = get_invoices(customer_id, location_id, myjson)
+    myjson = get_estimates(location_id, myjson)
 
     return json.dumps(myjson)
 
@@ -255,7 +256,7 @@ def upload_document_to_s3(document_content, job_id, appointment_id):
 def get_invoices(customer_id, location_id, myjson):
     try:
         print(f"Getting invoices for customer {customer_id}")
-        one_year_ago = timezone.now() - timedelta(days=settings.HISTORY_MONTHS * 30)
+        one_year_ago = timezone.now() - timedelta(days=int(settings.HISTORY_MONTHS) * 30)
         formatted_date = one_year_ago.strftime("%Y-%m-%d")
         invoices = invoices_api_call(invoicedOnOrAfter=formatted_date, customerId=customer_id)
         myjson['invoices'] = []
@@ -325,7 +326,7 @@ def get_customer_info(customer_id, location_id, myjson):
 
 def get_estimates(location_id, myjson):
     try:
-        one_year_ago = timezone.now() - timedelta(days=settings.HISTORY_MONTHS * 30)
+        one_year_ago = timezone.now() - timedelta(days=int(settings.HISTORY_MONTHS) * 30)
         formatted_date = one_year_ago.strftime("%Y-%m-%d")
         estimates = estimates_api_call(locationId=location_id, createdOnOrAfter=formatted_date)
         myjson["estimates"] = []
