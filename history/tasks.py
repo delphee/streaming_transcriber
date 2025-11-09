@@ -1,6 +1,6 @@
 from django.utils import timezone
 from django.conf import settings
-from history.st_api import jobs_api_call, appointment_assignments_api_call
+from history.st_api import jobs_api_call, appointment_assignments_api_call, customers_api_call, locations_api_call, estimates_api_call
 from history.models import DispatchJob, HistoryJob
 from streaming.models import UserProfile
 from django_q.models import Task
@@ -9,6 +9,7 @@ from history.push_notifications import send_tech_status_push
 from history.st_api import invoices_api_call
 import boto3
 from chunking.s3_handler import get_s3_client, generate_presigned_download_url
+import json
 
 def pollA():
     try:
@@ -179,6 +180,7 @@ def build_ai_job_document(dispatch_job_id, customer_id, location_id):
         # Construct the document with these
         document_content = construct_job_document(
             customer_id,
+            location_id,
             dispatch_job.job_id,
             dispatch_job.appointment_id,
             dispatch_job.tech_id
@@ -219,76 +221,16 @@ def build_ai_job_document(dispatch_job_id, customer_id, location_id):
         print(f"❌ Error building AI document: {e}")
 
 
-def construct_job_document(customer_id, job_id=None, appointment_id=None, tech_id=None):
+def construct_job_document(customer_id, location_id, job_id=None, appointment_id=None, tech_id=None):
     """
     Construct comprehensive job data document from ServiceTitan API
     Easy to expand with additional data sources
     """
-    document_parts = []
+    myjson = {}
+    myjson = get_customer_info(customer_id, location_id, myjson)
+    myjson = get_invoices(customer_id, location_id, myjson)
 
-    if customer_id is not None:
-        document_parts.append(get_invoices(customer_id))
-
-
-    # Get job information
-    '''jobs = jobs_api_call(ids=job_id)
-    if jobs:
-        job = jobs[0]
-        document_parts.append("=== JOB INFORMATION ===")
-        document_parts.append(f"Job Number: {job.get('jobNumber', 'N/A')}")
-        document_parts.append(f"Job Status: {job.get('jobStatus', 'N/A')}")
-        document_parts.append(f"Job Type: {job.get('jobType', {}).get('name', 'N/A')}")
-        document_parts.append(f"Business Unit: {job.get('businessUnit', {}).get('name', 'N/A')}")
-        document_parts.append(f"Campaign: {job.get('campaign', {}).get('name', 'N/A')}")
-        document_parts.append(f"Summary: {job.get('summary', 'N/A')}")
-        document_parts.append("")
-
-        # Get customer information
-        customer_id = job.get('customerId')
-        if customer_id:
-            customers = customers_api_call(ids=customer_id)
-            if customers:
-                customer = customers[0]
-                document_parts.append("=== CUSTOMER INFORMATION ===")
-                document_parts.append(f"Name: {customer.get('name', 'N/A')}")
-                document_parts.append(f"Phone: {customer.get('phoneNumber', 'N/A')}")
-                document_parts.append(f"Email: {customer.get('email', 'N/A')}")
-
-                # Get address from customer
-                address = customer.get('address', {})
-                if address:
-                    street = address.get('street', '')
-                    city = address.get('city', '')
-                    state = address.get('state', '')
-                    zip_code = address.get('zip', '')
-                    document_parts.append(f"Address: {street}, {city}, {state} {zip_code}")
-                document_parts.append("")'''
-
-    # Get appointment assignment information
-    '''assignments = appointment_assignments_api_call(appointmentIds=appointment_id)
-    if assignments:
-        for assignment in assignments:
-            if str(assignment.get('technicianId')) == str(tech_id):
-                document_parts.append("=== APPOINTMENT INFORMATION ===")
-                document_parts.append(f"Appointment Status: {assignment.get('status', 'N/A')}")
-
-                start = assignment.get('arrivalWindowStart', 'N/A')
-                end = assignment.get('arrivalWindowEnd', 'N/A')
-                document_parts.append(f"Arrival Window: {start} to {end}")
-
-                # Get technician name
-                tech_name = TECHS.get(str(tech_id), 'Unknown')
-                document_parts.append(f"Assigned Technician: {tech_name}")
-                document_parts.append("")
-                break'''
-
-    # TODO: Add more data sources as needed:
-    # - Estimates for this job
-    # - Previous job history for this customer
-    # - Equipment/location details
-    # - Special notes or tags
-
-    return "\n".join(document_parts)
+    return json.dumps(myjson)
 
 
 def upload_document_to_s3(document_content, job_id, appointment_id):
@@ -310,14 +252,93 @@ def upload_document_to_s3(document_content, job_id, appointment_id):
 
     return s3_key
 
-def get_invoices(customer_id):
-    print(f"Getting invoices for customer {customer_id}")
-    one_year_ago = timezone.now() - timedelta(days=365*7)
-    formatted_date = one_year_ago.strftime("%Y-%m-%d")
-    invoices = invoices_api_call(invoicedOnOrAfter=formatted_date, customerId=customer_id)
-    invoice_string = "Previous_Jobs_Done: "
-    for invoice in invoices:
-        if invoice["job"] is None:
-            continue
-        invoice_string += f"Date: {invoice['invoiceDate']}; Work done: {invoice['summary']}\n"
-    return invoice_string
+def get_invoices(customer_id, location_id, myjson):
+    try:
+        print(f"Getting invoices for customer {customer_id}")
+        one_year_ago = timezone.now() - timedelta(days=settings.HISTORY_MONTHS * 30)
+        formatted_date = one_year_ago.strftime("%Y-%m-%d")
+        invoices = invoices_api_call(invoicedOnOrAfter=formatted_date, customerId=customer_id)
+        myjson['invoices'] = []
+        for invoice in invoices:
+            if invoice["job"] is None:
+                continue
+            if "location" not in invoice:
+                continue
+            try:
+                if str(invoice["location"]["id"]) != location_id:
+                    continue
+            except:
+                pass
+            inv = {}
+            inv["date"] = invoice['invoiceDate']
+            inv['work_done'] = invoice['summary']
+            inv['total'] = invoice['total']
+            inv['line_items'] = []
+            for item in invoice['items']:
+                if 'generalLedgerAccount' in item:
+                    if 'detailType' in item['generalLedgerAccount']:
+                        if item['generalLedgerAccount']['detailType'] == 'Income':
+                            inv['line_items'].append(
+                                item['displayName']
+                            )
+            myjson['invoices'].append(inv)
+    except Exception as e:
+        print(f"Error fetching invoices: {e}")
+    return myjson
+
+def get_customer_info(customer_id, location_id, myjson):
+    try:
+        customer_name, address = "Unknown", "Unknown"
+        customers = customers_api_call(ids=customer_id)
+        if len(customers) > 0:
+            customer = customers[0]
+            if "name" in customer:
+                customer_name = customer["name"]
+            if "address" in customer:
+                c = customer["address"]
+                unit = c["unit"]
+                unit = "" if unit is None else f"unit {unit}"
+                address = f"{c['street']} {unit}\n{c['city']} {c['state']} {c['zip']}"
+        myjson["billing_name"] = customer_name
+        myjson["billing_address"] = address
+        location_name, address = "Unknown", "Unknown"
+        locations = locations_api_call(ids=location_id)
+        if len(locations)>0:
+            location = locations[0]
+            if "name" in location:
+                location_name = location["name"]
+            if "address" in location:
+                l = location["address"]
+                unit = l["unit"]
+                unit = "" if unit is None else f"unit {unit}"
+                address = f"{l['street']} {unit}\n{l['city']} {l['state']} {l['zip']}"
+        myjson["location_name"] = location_name
+        myjson["location_address"] = address
+        myjson["customer_summary"] = (
+            f"The job is located at {address} under the name {location_name}, "
+            f"and is owned by {customer_name} at {myjson['billing_address']}. "
+            "In many cases, the owner and occupant are the same person."
+        )
+    except Exception as e:
+        print(f"Error fetching customer data: {e}")
+    return myjson
+
+def get_estimates(location_id, myjson):
+    try:
+        one_year_ago = timezone.now() - timedelta(days=settings.HISTORY_MONTHS * 30)
+        formatted_date = one_year_ago.strftime("%Y-%m-%d")
+        estimates = estimates_api_call(locationId=location_id, createdOnOrAfter=formatted_date)
+        myjson["estimates"] = []
+        for estimate in estimates:
+            if estimate["active"] and estimate["status"]["name"] != "dismissed":
+                est = {}
+                est["name"] = estimate["name"]
+                est["summary"] = estimate["summary"][:150]
+                est["sold"] = estimate["soldOn"] is not None
+                est["total"] = estimate["subtotal"]
+                myjson["estimates"].append(est)
+
+    except Exception as e:
+        print(f"Error fetching estimates: {e}")
+    return myjson
+

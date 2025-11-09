@@ -265,11 +265,54 @@ def customers_api_call(tenant=TENANT_ID,ids=None,createdBefore=None,createdOnOrA
     return data
 
 
-ESTIMATESAPIFILTERSTRINGS = ['ids','status','jobId','projectId','jobNumber','number','soldAfter','soldBefore','soldBy','createdOnOrAfter']
-def estimates_api_call(tenant=TENANT_ID,ids=None,status=None,jobId=None,projectId=None,jobNumber=None,number=None,soldAfter=None,
-                      soldBefore=None,soldBy=None,createdOnOrAfter=None):
+LOCATIONSAPIFILTERSTRINGS = ['ids','createdBefore','createdOnOrAfter','name','street','city','state','zip','phone',
+                             'active']
+def locations_api_call(tenant=TENANT_ID,ids=None,createdBefore=None,createdOnOrAfter=None,name=None,street=None,city=None,
+                       state=None,zip=None,phone=None,active=None):
+    LOCATIONSAPIFILTERS = [ids,createdBefore,createdOnOrAfter,name,street,city,state,zip,phone,active]
     urltext = ""
-    ESTIMATESAPIFILTERS = [ids,status,jobId,projectId,jobNumber,number,soldAfter,soldBefore,soldBy,createdOnOrAfter]
+    for i in range(len(LOCATIONSAPIFILTERS)):
+        if LOCATIONSAPIFILTERS[i] is not None:
+            urltext += f"{LOCATIONSAPIFILTERSTRINGS[i]}={LOCATIONSAPIFILTERS[i]}&"
+    baseurl = f'https://api.servicetitan.io/crm/v2/tenant/{tenant}/locations?{urltext}'[:-1]
+    print(baseurl)
+    token = get_access_token()
+    if token in ["",None]:
+        print("No token")
+        return []
+    st_app_key = ST_APP_KEY
+    headers = CaseInsensitiveDict()
+    headers['Authorization'] = '{}'.format(token)
+    headers['ST-App-Key'] = f'{st_app_key}'
+    count = 0 # use to kill if goes off the rails
+    page = 1
+    hasMore = True
+    data = []
+    try:
+        while hasMore and (count < 100):
+            url = baseurl + f"&page={page}"
+            print(url)
+            resp = requests.get(url, headers=headers)
+            print(resp.status_code)
+            if int(resp.status_code) > 299:
+                print(resp.text)
+                quit()
+            response = json.loads(resp.text)
+            hasMore = response["hasMore"]
+            for datadict in response["data"]:
+                data.append(datadict)
+            page += 1
+            count += 1
+    except:
+        return []
+    return data
+
+
+ESTIMATESAPIFILTERSTRINGS = ['ids','status','jobId','projectId','jobNumber','number','soldAfter','soldBefore','soldBy','createdOnOrAfter','locationId']
+def estimates_api_call(tenant=TENANT_ID,ids=None,status=None,jobId=None,projectId=None,jobNumber=None,number=None,soldAfter=None,
+                      soldBefore=None,soldBy=None,createdOnOrAfter=None,locationId=None):
+    urltext = ""
+    ESTIMATESAPIFILTERS = [ids,status,jobId,projectId,jobNumber,number,soldAfter,soldBefore,soldBy,createdOnOrAfter,locationId]
     for i in range(len(ESTIMATESAPIFILTERS)):
         if ESTIMATESAPIFILTERS[i] is not None:
             urltext += f"{ESTIMATESAPIFILTERSTRINGS[i]}={ESTIMATESAPIFILTERS[i]}&"
@@ -288,7 +331,7 @@ def estimates_api_call(tenant=TENANT_ID,ids=None,status=None,jobId=None,projectI
     hasMore = True
     data = []
     try:
-        while hasMore and (count < 100):
+        while hasMore and (count < 30):
             url = baseurl + f"&page={page}"
             print(url)
             resp = requests.get(url, headers=headers)

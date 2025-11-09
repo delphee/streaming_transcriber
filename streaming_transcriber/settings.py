@@ -70,6 +70,7 @@ else:
         APNS_KEY_CONTENT = base64.b64decode(APNS_KEY_BASE64).decode('utf-8')
     else:
         APNS_KEY_CONTENT = None
+    HISTORY_MONTHS = os.environ.get('HISTORY_MONTHS')
 
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 AWS_S3_FILE_OVERWRITE = False  # Don't overwrite files with same name
