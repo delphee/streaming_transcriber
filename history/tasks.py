@@ -10,6 +10,7 @@ from history.st_api import invoices_api_call
 import boto3
 from chunking.s3_handler import get_s3_client, generate_presigned_download_url
 import json
+import tiktoken
 
 def pollA():
     try:
@@ -231,6 +232,10 @@ def construct_job_document(customer_id, location_id, job_id=None, appointment_id
     myjson = get_invoices(customer_id, location_id, myjson)
     myjson = get_estimates(location_id, myjson)
 
+    mydoc = json.dumps(myjson)
+    enc = tiktoken.encoding_for_model("gpt-4-turbo")
+    tokens = len(enc.encode(str(mydoc)))
+    print(f"Tokens: {tokens}")
     return json.dumps(myjson)
 
 

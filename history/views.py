@@ -418,7 +418,7 @@ def query_ai_service(job_document, user_query, conversation_history=None):
 
     # Call OpenAI
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4-turbo",
         messages=messages,
         temperature=0.7,
         max_tokens=500
