@@ -13,6 +13,9 @@ from django.views import View
 from django.contrib.auth.models import User
 from datetime import datetime, timedelta
 import secrets
+from django.views.decorators.http import require_http_methods
+import requests
+import os
 from history.push_notifications import send_tech_status_push
 
 
@@ -425,6 +428,70 @@ def query_ai_service(job_document, user_query, conversation_history=None):
         'answer': response.choices[0].message.content,
         'tokens_used': response.usage.total_tokens
     }
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def text_to_speech_view(request):
+    """
+    Proxy TTS requests to OpenAI API
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Not authenticated"}, status=401)
+
+    try:
+        import json
+        body = json.loads(request.body)
+        text = body.get('text')
+        voice = body.get('voice', 'alloy')  # Default voice
+        speed = body.get('speed', 1.0)
+
+        if not text:
+            return JsonResponse({"error": "No text provided"}, status=400)
+
+        # Call OpenAI TTS API
+        openai_url = "https://api.openai.com/v1/audio/speech"
+        headers = {
+            "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "gpt-4o-mini-tts",
+            "input": text,
+            "voice": voice,
+            "speed": speed,
+            "response_format": "mp3"
+        }
+
+        response = requests.post(openai_url, headers=headers, json=payload, stream=True)
+
+        if response.status_code != 200:
+            return JsonResponse(
+                {"error": f"OpenAI API error: {response.status_code}"},
+                status=response.status_code
+            )
+
+        # Return audio data directly
+        return HttpResponse(
+            response.content,
+            content_type='audio/mpeg',
+            status=200
+        )
+
+    except Exception as e:
+        print(f"❌ TTS error: {str(e)}")
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+
+
+
+
+
+
+
+
 
 
 
