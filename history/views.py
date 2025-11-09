@@ -221,7 +221,7 @@ def confirm_notification(request):
 
     # Find the DispatchJob
     try:
-        dispatch_job = DispatchJob.objects.get(appointment_id=str(appointment_id), tech_id=tech_id)
+        dispatch_job = DispatchJob.objects.get(appointment_id=str(appointment_id), tech_id=tech_id, active=True)
     except DispatchJob.DoesNotExist:
         return JsonResponse({'error': 'Job not found'}, status=404)
 
