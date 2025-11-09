@@ -83,7 +83,7 @@ def receive_webhook(request): # THIS MEANS A TECHNICIAN JUST DISPATCHED TO A JOB
         jobId = job["id"]
         appointment = data["appointment"]
         appointmentId = appointment["id"]
-        if get_dispatched_employees(appointmentId):
+        if get_dispatched_employees(appointmentId, customerId, locationId):
             print("Initiate background document contruction here! Send customerId, etc.")
         print(f"Webhook for job {jobId}, appointment {appointmentId}")
     except Exception as e:
@@ -91,7 +91,8 @@ def receive_webhook(request): # THIS MEANS A TECHNICIAN JUST DISPATCHED TO A JOB
 
     return HttpResponse(status=200)
 
-def get_dispatched_employees(appointmentId):
+
+def get_dispatched_employees(appointmentId, customerId, locationId):
     ios_user = False
     try:
         text = "No DispatchJob created"
@@ -111,7 +112,7 @@ def get_dispatched_employees(appointmentId):
                     print(f"Created? {created}")
                     # Trigger AI document building in background
                     if created:
-                        async_task('history.tasks.build_ai_job_document', dispatch_job.id)
+                        async_task('history.tasks.build_ai_job_document', dispatch_job.id, customerId, locationId)
                         print(f"📄 Queued AI document build for job {dispatch_job.job_id}")
 
                     text = "Created DispatchJob!"

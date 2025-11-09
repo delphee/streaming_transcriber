@@ -223,13 +223,14 @@ def confirm_notification(request):
         return JsonResponse({'error': 'Job not found'}, status=404)
 
     # Update the appropriate confirmation field
-    if result == 1:
-        dispatch_job.recording_active = True
+    if result == 1: # WORKING (Tech has arrived)
+        dispatch_job.notified_working = True
+        dispatch_job.recording_active = True # Redundant
         dispatch_job.polling_active = False  # Stop polling ST once iOS confirms 'Working'
         dispatch_job.save()
         return JsonResponse({'status': 'success', 'confirmed': 'working'}, status=200)
 
-    elif result == 2:
+    elif result == 2:  # DONE (Tech has completed job)
         dispatch_job.recording_stopped = True
         dispatch_job.polling_active = False
         dispatch_job.notified_done = True
@@ -237,7 +238,8 @@ def confirm_notification(request):
         return JsonResponse({'status': 'success', 'confirmed': 'done'}, status=200)
 
     elif result == 3:
-        # iOS acknowledges history is ready
+        # iOS acknowledges it knows history is ready
+        dispatch_job.notified_history = True
         dispatch_job.save()
         return JsonResponse({'status': 'success', 'confirmed': 'history'}, status=200)
 

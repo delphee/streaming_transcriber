@@ -23,24 +23,35 @@ def pollA():
                 user = None
 
             jobs = jobs_api_call(ids=d_job.job_id)
-            if len(jobs) == 0:
+            if len(jobs) == 0 or ("jobStatus" in jobs[0] and jobs[0]["jobStatus"] in ["Canceled", "Hold","Completed"]):
                 # Job was deleted
-                d_job.delete()
-                continue
-            job = jobs[0]
-            if "jobStatus" in job and job["jobStatus"] in ["Canceled", "Hold","Completed"]:
-                if not d_job.notified_done:
-                    # Handle case where recording was started and job was canceled, moved, or closed.
+                if d_job.notified_working and not d_job.notified_done:
+                    #
+                    # Recording was started and not stopped before job Deleted, Canceled, Held, or Completed:
                     send_tech_status_push(user, 2, appointment_id=d_job.appointment_id)
                     continue
+                # Recording not started; close out.
+                d_job.polling_active = False
+                d_job.notified_history = False
+                d_job.notified_done = False
+                d_job.notified_working = False
                 d_job.active = False
-                d_job.polling_active = False # Just for admin visibility
                 d_job.save()
                 continue
             appointment_assignments = appointment_assignments_api_call(appointmentIds=d_job.appointment_id)
-            if len(appointment_assignments) == 0:
-                # Appointment canceled
+            if len(appointment_assignments) == 0 or appointment_assignments[0]['status'] in ["Done","Scheduled"]:
+                # Appointment canceled, marked done, or rescheduled before working
+                if d_job.notified_working and not d_job.notified_done:
+                    # Recording was started and not stopped before Appointment Canceled:
+                    send_tech_status_push(user, 2, appointment_id=d_job.appointment_id)
+                    continue
+                # Recording not started; close out.
+                d_job.polling_active = False
+                d_job.notified_history = False
+                d_job.notified_done = False
+                d_job.notified_working = False
                 d_job.active = False
+                d_job.save()
                 continue
             #
             #   Find tech's data in list, if it is there
@@ -57,69 +68,38 @@ def pollA():
                 if str(assignment["technicianId"]) != d_job.tech_id:
                     continue
 
-
-
                 if assignment["status"] == "Dispatched":
                     #
-                    #   Ensure polling for "Working" starts
+                    #   Ensure ST polling for "Working" starts
                     #
                     d_job.polling_active = True
                     d_job.save()
 
                     # Check if history is ready and send push if not already notified
-                    if not d_job.notified_history and user:
-
+                    if not d_job.notified_history and user and d_job.ai_document_built:
                         send_tech_status_push(user, 3, appointment_id=d_job.appointment_id)
-                        d_job.notified_history = True
                         d_job.save()
                         print(f"Sent history ready push (result:3) for job {d_job.job_id}")
-
-                elif assignment["status"] == "Done":  # THIS CAN TRIGGER RECORDING STOP
-                    print(f"Setting DispatchJob status to 'Done' for job {d_job.job_id}")
-                    d_job.status = "Done"
-                    d_job.polling_active = False
-                    d_job.active = False
-
-                    # Send push notification if not already sent
-                    # iOS will confirm receipt and set .notified_done=True
-                    if not d_job.notified_done and user:
-                        send_tech_status_push(user, 2, appointment_id=d_job.appointment_id)
-                        print(f"Sent done push (result:2) for job {d_job.job_id}")
-                    d_job.save()
-
-                elif assignment["status"] == "Scheduled":
-                    d_job.status = "Scheduled"
-                    d_job.polling_active = False
-                    d_job.notified_history = False
-                    d_job.notified_done = False
-                    d_job.notified_working = False
-                    d_job.active = False
-                    d_job.save()
 
                 elif assignment["status"] == "Working":
                     print(f"Setting DispatchJob status to 'Working' for job {d_job.job_id}")
                     d_job.status = "Working"  # THIS IS WHAT TRIGGERS RECORDING START; don't set active to False
                     d_job.polling_active = True  # Should already be True; iOS polling will set to False when recording starts
-
                     # Send push notification if not already sent
                     if not d_job.notified_working and user:
 
                         send_tech_status_push(user, 1, appointment_id=d_job.appointment_id)
-                        d_job.notified_working = True
                         print(f"Sent working push (result:1) for job {d_job.job_id}")
 
                     d_job.save()
                 else:
                     print(f"Assignment error!  status = {assignment['status']}!!")
-        now = timezone.now()
-        if now.minute % 10 == 0:
-            pollB()
     except Exception as e:
         print(f"PollA failed: {e}")
 
 
 def pollB():  # A less-frequent polling to catch any job completions that didn't trigger a JobComplete Webhook
-    try:
+    try:      # No reason pollA can't catch all of these.  NOT USED
         print("10 minute poll...")
         dispatch_jobs = DispatchJob.objects.filter(active=True, status="Working")
         for d_job in dispatch_jobs:
@@ -184,15 +164,15 @@ def compile_document(job_id):
     print("Compiling Document...")
 
 
-def build_ai_job_document(dispatch_job_id):
+def build_ai_job_document(dispatch_job_id, customer_id, location_id):
     """
     Build comprehensive AI job document and upload to S3
     Called as background task when DispatchJob is created
     """
     try:
         dispatch_job = DispatchJob.objects.get(id=dispatch_job_id)
-        job = jobs_api_call(ids=dispatch_job.job_id)[0]
-        customer_id = job["customerId"]
+        #job = jobs_api_call(ids=dispatch_job.job_id)[0]
+        #customer_id = job["customerId"]
 
         print(f"Building AI document for job {dispatch_job.job_id}...")
 
