@@ -433,23 +433,19 @@ def query_ai_service(job_document, user_query, conversation_history=None):
 @csrf_exempt
 @require_http_methods(["POST"])
 def text_to_speech_view(request):
-    """
-    Proxy TTS requests to OpenAI API
-    """
+    """Proxy TTS to OpenAI"""
     if not request.user.is_authenticated:
         return JsonResponse({"error": "Not authenticated"}, status=401)
 
     try:
-        import json
         body = json.loads(request.body)
         text = body.get('text')
-        voice = body.get('voice', 'alloy')  # Default voice
+        voice = body.get('voice', 'alloy')
         speed = body.get('speed', 1.0)
 
         if not text:
             return JsonResponse({"error": "No text provided"}, status=400)
 
-        # Call OpenAI TTS API
         openai_url = "https://api.openai.com/v1/audio/speech"
         headers = {
             "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
@@ -464,23 +460,14 @@ def text_to_speech_view(request):
             "response_format": "mp3"
         }
 
-        response = requests.post(openai_url, headers=headers, json=payload, stream=True)
+        response = requests.post(openai_url, headers=headers, json=payload)
 
         if response.status_code != 200:
-            return JsonResponse(
-                {"error": f"OpenAI API error: {response.status_code}"},
-                status=response.status_code
-            )
+            return JsonResponse({"error": f"OpenAI error: {response.status_code}"}, status=response.status_code)
 
-        # Return audio data directly
-        return HttpResponse(
-            response.content,
-            content_type='audio/mpeg',
-            status=200
-        )
+        return HttpResponse(response.content, content_type='audio/mpeg')
 
     except Exception as e:
-        print(f"❌ TTS error: {str(e)}")
         return JsonResponse({"error": str(e)}, status=500)
 
 
