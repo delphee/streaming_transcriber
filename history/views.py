@@ -225,12 +225,14 @@ def confirm_notification(request):
     # Update the appropriate confirmation field
     if result == 1:
         dispatch_job.recording_active = True
-        dispatch_job.polling_active = False  # Stop polling once iOS confirms
+        dispatch_job.polling_active = False  # Stop polling ST once iOS confirms 'Working'
         dispatch_job.save()
         return JsonResponse({'status': 'success', 'confirmed': 'working'}, status=200)
 
     elif result == 2:
         dispatch_job.recording_stopped = True
+        dispatch_job.polling_active = False
+        dispatch_job.notified_done = True
         dispatch_job.save()
         return JsonResponse({'status': 'success', 'confirmed': 'done'}, status=200)
 

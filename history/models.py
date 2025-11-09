@@ -41,6 +41,7 @@ class DispatchJob(models.Model):
     notified_history = models.BooleanField(default=False, help_text="Push sent for history ready (result:3)")
     ai_document_s3_key = models.TextField(blank=True, null=True, help_text="S3 key for AI job data document")
     ai_document_built = models.BooleanField(default=False, help_text="AI document has been built and uploaded to S3")
+    out_of_order = models.BooleanField(default=False, help_text="Appointment returned to 'Scheduled' status after Dispatch")
 
     def __str__(self):
         return (f"{self.job_id} - {self.appointment_id} {'Polling...' if self.polling_active else ''} "

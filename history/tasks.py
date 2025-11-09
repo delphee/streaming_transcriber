@@ -15,14 +15,26 @@ def pollA():
         print("pollA...")
         dispatch_jobs = DispatchJob.objects.filter(active=True)
         for d_job in dispatch_jobs:
+            # Get user for push notifications
+            try:
+                user_profile = UserProfile.objects.get(st_id=d_job.tech_id)
+                user = user_profile.user
+            except UserProfile.DoesNotExist:
+                user = None
+
             jobs = jobs_api_call(ids=d_job.job_id)
             if len(jobs) == 0:
                 # Job was deleted
                 d_job.delete()
                 continue
             job = jobs[0]
-            if "jobStatus" in job and job["jobStatus"] in ["Canceled", "Hold"]:
+            if "jobStatus" in job and job["jobStatus"] in ["Canceled", "Hold","Completed"]:
+                if not d_job.notified_done:
+                    # Handle case where recording was started and job was canceled, moved, or closed.
+                    send_tech_status_push(user, 2, appointment_id=d_job.appointment_id)
+                    continue
                 d_job.active = False
+                d_job.polling_active = False # Just for admin visibility
                 d_job.save()
                 continue
             appointment_assignments = appointment_assignments_api_call(appointmentIds=d_job.appointment_id)
@@ -45,27 +57,19 @@ def pollA():
                 if str(assignment["technicianId"]) != d_job.tech_id:
                     continue
 
-                # Get user for push notifications
-                try:
-                    user_profile = UserProfile.objects.get(st_id=d_job.tech_id)
-                    user = user_profile.user
-                except UserProfile.DoesNotExist:
-                    user = None
+
 
                 if assignment["status"] == "Dispatched":
                     #
                     #   Ensure polling for "Working" starts
                     #
-                    history_job, created = HistoryJob.objects.get_or_create(job_id=str(assignment["jobId"]),
-                                                                            appointment_id=str(
-                                                                                assignment["appointmentId"]))
                     d_job.polling_active = True
                     d_job.save()
 
                     # Check if history is ready and send push if not already notified
-                    if history_job.ready and not d_job.notified_history and user:
+                    if not d_job.notified_history and user:
 
-                        send_tech_status_push(user, 3, data=history_job.data, appointment_id=d_job.appointment_id)
+                        send_tech_status_push(user, 3, appointment_id=d_job.appointment_id)
                         d_job.notified_history = True
                         d_job.save()
                         print(f"Sent history ready push (result:3) for job {d_job.job_id}")
@@ -77,17 +81,18 @@ def pollA():
                     d_job.active = False
 
                     # Send push notification if not already sent
+                    # iOS will confirm receipt and set .notified_done=True
                     if not d_job.notified_done and user:
-
                         send_tech_status_push(user, 2, appointment_id=d_job.appointment_id)
-                        d_job.notified_done = True
                         print(f"Sent done push (result:2) for job {d_job.job_id}")
-
                     d_job.save()
 
                 elif assignment["status"] == "Scheduled":
                     d_job.status = "Scheduled"
                     d_job.polling_active = False
+                    d_job.notified_history = False
+                    d_job.notified_done = False
+                    d_job.notified_working = False
                     d_job.active = False
                     d_job.save()
 
@@ -131,6 +136,7 @@ def pollB():  # A less-frequent polling to catch any job completions that didn't
                 # Recording may have started already
                 d_job.status = "Done"
                 d_job.active = False
+                d_job.polling_active = False
                 d_job.save()
                 continue
             appointment_assignments = appointment_assignments_api_call(appointmentIds=d_job.appointment_id)
