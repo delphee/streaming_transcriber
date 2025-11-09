@@ -431,21 +431,40 @@ def query_ai_service(job_document, user_query, conversation_history=None):
 
 
 @csrf_exempt
-@require_http_methods(["POST"])
 def text_to_speech_view(request):
-    """Proxy TTS to OpenAI"""
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Not authenticated"}, status=401)
+    """
+    iOS endpoint for OpenAI TTS
+    POST body: {
+        "text": "string",
+        "voice": "alloy",  # Optional: alloy, echo, fable, onyx, nova, shimmer
+        "speed": 1.0       # Optional: 0.25 to 4.0
+    }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
 
+    # Get token from header
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return JsonResponse({'success': False, 'error': 'Invalid authorization header'}, status=401)
+
+    token = auth_header.split(' ')[1]
+    user = get_user_from_token(token)
+
+    if not user:
+        return JsonResponse({'success': False, 'error': 'Invalid token'}, status=401)
+
+    # Parse request body
     try:
-        body = json.loads(request.body)
+        body = json.loads(request.body.decode('utf-8'))
         text = body.get('text')
         voice = body.get('voice', 'alloy')
         speed = body.get('speed', 1.0)
 
         if not text:
-            return JsonResponse({"error": "No text provided"}, status=400)
+            return JsonResponse({'success': False, 'error': 'No text provided'}, status=400)
 
+        # Call OpenAI TTS API
         openai_url = "https://api.openai.com/v1/audio/speech"
         headers = {
             "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
@@ -460,16 +479,32 @@ def text_to_speech_view(request):
             "response_format": "mp3"
         }
 
+        print(f"🔊 TTS Request from {user.username}: voice={voice}, speed={speed}, text_length={len(text)}")
+
         response = requests.post(openai_url, headers=headers, json=payload)
 
         if response.status_code != 200:
-            return JsonResponse({"error": f"OpenAI error: {response.status_code}"}, status=response.status_code)
+            error_text = response.text[:200]
+            print(f"❌ OpenAI TTS error {response.status_code}: {error_text}")
+            return JsonResponse(
+                {'success': False, 'error': f'OpenAI API error: {response.status_code}'},
+                status=response.status_code
+            )
 
-        return HttpResponse(response.content, content_type='audio/mpeg')
+        print(f"✅ TTS Success: {len(response.content)} bytes")
 
+        # Return audio data directly
+        return HttpResponse(
+            response.content,
+            content_type='audio/mpeg',
+            status=200
+        )
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
-
+        print(f"❌ TTS error: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 
