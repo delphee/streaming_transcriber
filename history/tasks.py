@@ -348,4 +348,3 @@ def get_estimates(location_id, myjson):
     except Exception as e:
         print(f"Error fetching estimates: {e}")
     return myjson
-
