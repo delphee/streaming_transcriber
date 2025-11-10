@@ -25,7 +25,8 @@ TECHS = {
     "67321105":"Thomas Shawaryn",
     "114376585":"Tim Miller",
     "125325480":"Jake Simpson",
-    "111119391":"Dewayne McCauley"
+    "111119391":"Dewayne McCauley",
+    "226615332":"Jason OBrien"
 }
 
 
