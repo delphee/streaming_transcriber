@@ -90,7 +90,7 @@ def ios_login(request):
         token = generate_auth_token(authenticated_user)
 
         current_appointment = None
-        dispatch_jobs = DispatchJob.objects.filter(active=True, tech_id=str(profile.tech_id))
+        dispatch_jobs = DispatchJob.objects.filter(active=True, tech_id=str(profile.st_id))
         if len(dispatch_jobs) > 0:
             d_job = dispatch_jobs[0]
             appointment_id = d_job.appointment_id
@@ -150,7 +150,7 @@ def ios_verify_token(request):
             profile, _ = UserProfile.objects.get_or_create(user=user)
 
             current_appointment = None
-            dispatch_jobs = DispatchJob.objects.filter(active=True, tech_id=str(profile.tech_id))
+            dispatch_jobs = DispatchJob.objects.filter(active=True, tech_id=str(profile.st_id))
             if len(dispatch_jobs) > 0:
                 d_job = dispatch_jobs[0]
                 appointment_id = d_job.appointment_id
