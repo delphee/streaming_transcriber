@@ -146,6 +146,21 @@ def ios_verify_token(request):
 
             # Token is valid
             user = token.user
+
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+
+            current_appointment = None
+            dispatch_jobs = DispatchJob.objects.filter(active=True, tech_id=str(profile.tech_id))
+            if len(dispatch_jobs) > 0:
+                d_job = dispatch_jobs[0]
+                appointment_id = d_job.appointment_id
+                if d_job.polling_active and d_job.ai_document_built:
+                    current_appointment = {
+                        "appointment_id": appointment_id,
+                        "result": 3
+                    }
+            print(f"current_appointment: {current_appointment}")
+
             return JsonResponse({
                 'valid': True,
                 'user': {
@@ -155,7 +170,8 @@ def ios_verify_token(request):
                     'first_name': user.first_name,
                     'last_name': user.last_name,
                     'is_staff': user.is_staff,
-                }
+                },
+            'current_appointment':current_appointment
             })
 
         except AuthToken.DoesNotExist:
