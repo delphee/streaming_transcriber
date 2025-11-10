@@ -62,7 +62,7 @@ def ios_login(request):
     """iOS token-based login"""
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
-
+    print("ios_login running....")
     try:
         data = json.loads(request.body)
         email = data.get('email', '').lower().strip()
