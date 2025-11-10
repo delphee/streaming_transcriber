@@ -13,6 +13,17 @@ TECHS = {
     "356406954":"Michael Ouden Jr",
     "384234754":"Christopher Franklin",
     "7129641":"David Elphee",
+    "144096740":"Jayden Barlow",
+    "383003261":"John Sayers",
+    "138699985":"John Williams",
+    "273358904":"Josh Jenkins",
+    "43715608":"Justin Barron",
+    "345283118":"Osman Harooni",
+    "380471230":"Riley Woodward",
+    "224925184":"Shawn Hollingsworth",
+    "133853401":"Stephen Starner",
+    "67321105":"Thomas Shawaryn",
+    "114376585":"Tim Miller"
 }
 
 
