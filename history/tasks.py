@@ -86,7 +86,7 @@ def pollA():
                 elif assignment["status"] == "Working":
                     print(f"Setting DispatchJob status to 'Working' for job {d_job.job_id}")
                     d_job.status = "Working"  # THIS IS WHAT TRIGGERS RECORDING START; don't set active to False
-                    d_job.polling_active = True  # Should already be True; iOS polling will set to False when recording starts
+                    #d_job.polling_active = True  # Should already be True; iOS polling will set to False when recording starts
                     # Send push notification if not already sent
                     if not d_job.notified_working and user:
 
