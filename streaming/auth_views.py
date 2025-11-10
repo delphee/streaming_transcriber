@@ -67,7 +67,7 @@ def ios_login(request):
         data = json.loads(request.body)
         email = data.get('email', '').lower().strip()
         password = data.get('password', '')
-
+        print(f"Attempting to log in >{email}< >{password}<... ")
         if not email or not password:
             return JsonResponse({'success': False, 'error': 'Email and password required'}, status=400)
 
