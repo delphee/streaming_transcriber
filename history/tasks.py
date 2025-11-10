@@ -272,6 +272,7 @@ def get_invoices(customer_id, location_id, myjson):
                 continue
             try:
                 if str(invoice["location"]["id"]) != location_id:
+                    print(f"API Invoice location ID {str(invoice['location']['id'])} != {location_id}")
                     continue
             except:
                 pass
