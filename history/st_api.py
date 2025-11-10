@@ -145,15 +145,11 @@ def jobs_api_call(tenant=TENANT_ID,ids=None,number=None,projectId=None,jobStatus
                       firstAppointmentStartsBefore,appointmentStartsOnOrAfter,technicianId,customerId,locationId,
                       soldById,jobTypeId,businessUnitId,invoiceId,createdBefore,createdOnOrAfter,
                       modifiedBefore,modifiedOnOrAfter,completedOnOrAfter,completedBefore]
-    print(tenant)
-    print(completedBefore)
-    print(completedOnOrAfter)
     urltext = ""
     for i in range(len(JOBSAPIFILTERS)):
         if JOBSAPIFILTERS[i] is not None:
             urltext += f"{JOBSAPIFILTERSTRINGS[i]}={JOBSAPIFILTERS[i]}&"
     baseurl = f'https://api.servicetitan.io/jpm/v2/tenant/{tenant}/jobs?{urltext}'[:-1]
-    print(baseurl)
     token = get_access_token()
     if token in ["",None]:
         print("No token")
@@ -192,7 +188,6 @@ def appointment_assignments_api_call(tenant=TENANT_ID,ids=None,appointmentIds=No
         if APPOINTMENTSASSIGNMENTSAPIFILTERS[i] is not None:
             urltext+=f"{APPOINTMENTSASSIGNMENTSAPIFILTERSTRINGS[i]}={APPOINTMENTSASSIGNMENTSAPIFILTERS[i]}&"
     baseurl = f'https://api.servicetitan.io/dispatch/v2/tenant/{tenant}/appointment-assignments?{urltext}'[:-1]
-    print(baseurl)
     token = get_access_token()
     if token in ["",None]:
         print("No token")
@@ -232,7 +227,6 @@ def customers_api_call(tenant=TENANT_ID,ids=None,createdBefore=None,createdOnOrA
         if CUSTOMERSAPIFILTERS[i] is not None:
             urltext += f"{CUSTOMERSAPIFILTERSTRINGS[i]}={CUSTOMERSAPIFILTERS[i]}&"
     baseurl = f'https://api.servicetitan.io/crm/v2/tenant/{tenant}/customers?{urltext}'[:-1]
-    print(baseurl)
     token = get_access_token()
     if token in ["",None]:
         print("No token")
@@ -275,7 +269,6 @@ def locations_api_call(tenant=TENANT_ID,ids=None,createdBefore=None,createdOnOrA
         if LOCATIONSAPIFILTERS[i] is not None:
             urltext += f"{LOCATIONSAPIFILTERSTRINGS[i]}={LOCATIONSAPIFILTERS[i]}&"
     baseurl = f'https://api.servicetitan.io/crm/v2/tenant/{tenant}/locations?{urltext}'[:-1]
-    print(baseurl)
     token = get_access_token()
     if token in ["",None]:
         print("No token")
@@ -317,7 +310,6 @@ def estimates_api_call(tenant=TENANT_ID,ids=None,status=None,jobId=None,projectI
         if ESTIMATESAPIFILTERS[i] is not None:
             urltext += f"{ESTIMATESAPIFILTERSTRINGS[i]}={ESTIMATESAPIFILTERS[i]}&"
     baseurl = f'https://api.servicetitan.io/sales/v2/tenant/{tenant}/estimates?{urltext}'[:-1]
-    print(baseurl)
     token = get_access_token()
     if token in ["",None]:
         print("No token")

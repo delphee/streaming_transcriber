@@ -91,7 +91,7 @@ def pollA():
                     if not d_job.notified_working and user:
 
                         send_tech_status_push(user, 1, appointment_id=d_job.appointment_id)
-                        print(f"Sent working push (result:1) for job {d_job.job_id}")
+                        #print(f"Sent working push (result:1) for job {d_job.job_id}")
 
                     d_job.save()
                 else:
@@ -271,8 +271,8 @@ def get_invoices(customer_id, location_id, myjson):
             if "location" not in invoice:
                 continue
             try:
-                if str(invoice["location"]["id"]) != location_id:
-                    print(f"API Invoice location ID {str(invoice['location']['id'])} != {location_id}")
+                if str(invoice["location"]["id"]) != str(location_id):
+                    print(f"API Invoice location ID {str(invoice['location']['id'])} != {str(location_id)}")
                     continue
             except:
                 pass
