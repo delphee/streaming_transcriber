@@ -36,7 +36,7 @@ async def send_tech_status_push_async(device_tokens, new_status, appointment_id,
     )
 
     # Prepare push payload - VISIBLE for testing
-    payload = {
+    ORIGINALpayload = {
         "aps": {
             "alert": {
                 "title": "Tech Status Update",
@@ -47,6 +47,15 @@ async def send_tech_status_push_async(device_tokens, new_status, appointment_id,
         },
         "result": new_status,
         "appointment_id": appointment_id,
+    }
+
+    payload = {
+        "aps": {
+            "content-available": 1,
+            "badge": 0
+        },
+        "result": new_status,
+        "appointment_id": appointment_id
     }
 
     if data:

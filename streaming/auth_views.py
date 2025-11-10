@@ -11,7 +11,7 @@ import json
 import secrets
 
 from .models import AuthToken, UserProfile
-
+from history.models import DispatchJob
 
 # MARK: - Web Authentication (Session-based)
 
@@ -89,6 +89,18 @@ def ios_login(request):
         # Generate authentication token
         token = generate_auth_token(authenticated_user)
 
+        current_appointment = None
+        dispatch_jobs = DispatchJob.objects.filter(active=True, tech_id=profile.tech_id)
+        if len(dispatch_jobs) > 0:
+            d_job = dispatch_jobs[0]
+            appointment_id = d_job.appointment_id
+            if d_job.polling_active and d_job.ai_document_built:
+                current_appointment = {
+                    "appointment_id": appointment_id,
+                    "result": 3
+                }
+
+
         return JsonResponse({
             'success': True,
             'token': token.token,
@@ -100,7 +112,8 @@ def ios_login(request):
                 'last_name': authenticated_user.last_name,
                 'user_type': 'admin' if authenticated_user.is_staff else 'user',
                 'auto_share': profile.auto_share
-            }
+            },
+            'current_appointment':current_appointment
         })
 
     except json.JSONDecodeError:
