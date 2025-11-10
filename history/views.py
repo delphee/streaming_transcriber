@@ -458,7 +458,7 @@ def text_to_speech_view(request):
     try:
         body = json.loads(request.body.decode('utf-8'))
         text = body.get('text')
-        voice = body.get('voice', 'echo')
+        voice = body.get('voice', 'alloy')
         speed = body.get('speed', 1.0)
 
         if not text:
@@ -476,7 +476,7 @@ def text_to_speech_view(request):
             "input": text,
             "voice": voice,
             "speed": speed,
-            "response_format": "opus"
+            "response_format": "mp3"
         }
 
         print(f"🔊 TTS Request from {user.username}: voice={voice}, speed={speed}, text_length={len(text)}")
@@ -496,7 +496,7 @@ def text_to_speech_view(request):
         # Return audio data directly
         return HttpResponse(
             response.content,
-            content_type='audio/opus',
+            content_type='audio/mpeg',
             status=200
         )
 
