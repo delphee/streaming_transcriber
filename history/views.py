@@ -252,7 +252,7 @@ def confirm_notification(request):
 
 
 @csrf_exempt
-def ai_conversation_query(request):
+def ai_conversation_queryORIGINAL(request):
     """
     iOS endpoint for AI-powered job data queries
     POST body: {
@@ -338,6 +338,147 @@ def ai_conversation_query(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'error': 'Internal server error'}, status=500)
+
+
+@csrf_exempt
+def ai_conversation_query(request):
+    """
+    iOS endpoint for AI-powered job data queries
+    POST body: {
+        "job_data": "string",  # Optional, reserved for future use
+        "query": "What time is the appointment?",
+        "conversation_history": [...]  # Optional
+    }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    # Get token from header
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return JsonResponse({'success': False, 'error': 'Invalid authorization header'}, status=401)
+
+    token = auth_header.split(' ')[1]
+    user = get_user_from_token(token)
+
+    if not user:
+        return JsonResponse({'success': False, 'error': 'Invalid token'}, status=401)
+
+    # Parse request body
+    try:
+        body = json.loads(request.body.decode('utf-8'))
+        query = body.get('query')
+        appointment_id = body.get('appointment_id', '')  # Reserved for future use
+        conversation_history = body.get('conversation_history', [])
+        voice = body.get('voice', 'alloy')
+        speed = body.get('speed', 1.0)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'success': False, 'error': 'Invalid JSON body'}, status=400)
+
+    if not query or not appointment_id:
+        return JsonResponse({'success': False, 'error': 'Missing required fields'}, status=400)
+
+    # Get user's current active job
+    try:
+        user_profile = UserProfile.objects.get(user=user)
+        tech_id = user_profile.st_id
+
+        # Get the active dispatch job for this tech
+        dispatch_job = DispatchJob.objects.filter(tech_id=tech_id, appointment_id=appointment_id).first()
+
+        if not dispatch_job:
+            return JsonResponse({
+                'success': False,
+                'error': 'No active job found'
+            }, status=404)
+
+        # Check if AI document is ready
+        if not dispatch_job.ai_document_built or not dispatch_job.ai_document_s3_key:
+            return JsonResponse({
+                'success': False,
+                'error': 'Job document not ready yet. Please try again in a moment.'
+            }, status=202)  # 202 Accepted - processing
+
+        # Fetch document from S3
+        job_document = fetch_document_from_s3(dispatch_job.ai_document_s3_key)
+
+        if not job_document:
+            return JsonResponse({
+                'success': False,
+                'error': 'Unable to retrieve job document'
+            }, status=500)
+
+        # Query AI with the document and conversation history
+        ai_response = query_ai_service(
+            job_document=job_document,
+            user_query=query,
+            conversation_history=conversation_history
+        )
+
+        answer = ai_response['answer']
+
+        print(f"AI Answer generated!")
+
+        # Generate TTS audio for the answer
+        try:
+            openai_tts_url = "https://api.openai.com/v1/audio/speech"
+            tts_headers = {
+                "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
+                "Content-Type": "application/json"
+            }
+
+            tts_payload = {
+                "model": "gpt-4o-mini-tts",
+                "input": answer,
+                "voice": voice,
+                "speed": speed,
+                "response_format": "mp3"
+            }
+
+            print(f"🔊 Generating TTS: voice={voice}, speed={speed}")
+
+            tts_response = requests.post(openai_tts_url, headers=tts_headers, json=tts_payload)
+
+            if tts_response.status_code != 200:
+                print(f"⚠️ TTS generation failed: {tts_response.status_code}")
+                # Return answer without audio
+                return JsonResponse({
+                    'success': True,
+                    'answer': answer,
+                    'audio': None,
+                    'error': 'TTS generation failed'
+                })
+
+            # Encode audio as base64
+            import base64
+            audio_base64 = base64.b64encode(tts_response.content).decode('utf-8')
+
+            print(f"✅ TTS generated: {len(tts_response.content)} bytes")
+
+            # Return both text and audio
+            return JsonResponse({
+                'success': True,
+                'answer': answer,
+                'audio': audio_base64,
+                'audio_format': 'mp3'
+            })
+
+        except Exception as tts_error:
+            print(f"❌ TTS error: {str(tts_error)}")
+            # Return answer without audio if TTS fails
+            return JsonResponse({
+                'success': True,
+                'answer': answer,
+                'audio': None,
+                'error': f'TTS error: {str(tts_error)}'
+            })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        print(f"❌ Query error: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+################################################################################
 
 
 def fetch_document_from_s3(s3_key):
