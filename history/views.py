@@ -225,6 +225,8 @@ def confirm_notification(request):
     except DispatchJob.DoesNotExist:
         return JsonResponse({'error': 'Job not found'}, status=404)
 
+    print(f"Job {dispatch_job.job_id} result: {result}")
+
     # Update the appropriate confirmation field
     if result == 1: # WORKING (Tech has arrived)
         dispatch_job.notified_working = True
