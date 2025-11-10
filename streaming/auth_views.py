@@ -90,7 +90,7 @@ def ios_login(request):
         token = generate_auth_token(authenticated_user)
 
         current_appointment = None
-        dispatch_jobs = DispatchJob.objects.filter(active=True, tech_id=profile.tech_id)
+        dispatch_jobs = DispatchJob.objects.filter(active=True, tech_id=str(profile.tech_id))
         if len(dispatch_jobs) > 0:
             d_job = dispatch_jobs[0]
             appointment_id = d_job.appointment_id
@@ -99,7 +99,7 @@ def ios_login(request):
                     "appointment_id": appointment_id,
                     "result": 3
                 }
-
+        print(f"current_appointment: {current_appointment}")
 
         return JsonResponse({
             'success': True,
