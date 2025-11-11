@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Internal Field Service Management Portal">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Field Service Management Portal</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            background: #f4f4f4;
+            padding: 30px;
+            border-radius: 8px;
+        }
+        h1 { color: #333; }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .login-link {
+            display: inline-block;
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛠️ Field Service Management Portal</h1>
+        
+        <div class="warning">
+            <strong>⚠️ Internal Use Only</strong>
+            <p>This is a private business application for authorized employees only.</p>
+        </div>
+        
+        <h2>About This System</h2>
+        <p>This is an internal field service management tool that helps technicians:</p>
+        <ul>
+            <li>Record job site conversations</li>
+            <li>Generate automated transcripts</li>
+            <li>Track service appointments</li>
+            <li>Manage customer interactions</li>
+        </ul>
+        
+        <h2>For Authorized Users</h2>
+        <p>If you are an employee with authorized access, please log in below.</p>
+        <a href="/login/" class="login-link">Employee Login →</a>
+        
+        <hr style="margin: 30px 0;">
+        
+        <h2>Not a Phishing Site</h2>
+        <p><strong>Security Notice:</strong> This site uses standard Django authentication patterns. 
+        The <code>/login/?next=/</code> redirect is a normal security feature, not malicious behavior.</p>
+        
+        <p>If you reached this page in error or have security concerns, please contact your IT administrator.</p>
+    </div>
+</body>
+</html>
