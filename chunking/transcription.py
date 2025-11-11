@@ -15,7 +15,7 @@ from openai import OpenAI
 import json
 import re
 from datetime import timedelta
-from .s3_handler import generate_presigned_download_url
+from .s3_handler_hybrid import generate_presigned_download_url
 from functools import lru_cache
 
 # Initialize clients
@@ -168,34 +168,6 @@ def stitch_preliminary_transcript(conversation):
     conversation.save()
 
     print(f"ðŸ“ Stitched preliminary transcript: {len(conversation.preliminary_transcript)} chars")
-
-
-def should_trigger_preliminary_transcription(conversation):
-    """
-    Determine if we should trigger preliminary transcription based on settings.
-
-    Args:
-        conversation: ChunkedConversation instance
-
-    Returns:
-        tuple: (should_transcribe: bool, chunk_ids: list)
-    """
-    from .models import AudioChunk
-
-    # Get chunks that haven't been transcribed yet
-    untranscribed_chunks = AudioChunk.objects.filter(
-        conversation=conversation,
-        transcript_text=''
-    ).order_by('chunk_number')
-
-    batch_size = getattr(settings, 'PRELIMINARY_TRANSCRIPTION_BATCH_SIZE', 3)
-
-    if untranscribed_chunks.count() >= batch_size:
-        # Transcribe the oldest batch
-        chunks_to_transcribe = list(untranscribed_chunks[:batch_size].values_list('id', flat=True))
-        return True, chunks_to_transcribe
-
-    return False, []
 
 
 # === FINAL TRANSCRIPTION (High Quality + Speaker Diarization) ===
@@ -759,17 +731,42 @@ def search_transcripts(conversation_id, query):
     return results
 
 
-# === CONVENIENCE WRAPPERS (for backward compatibility) ===
+def optimize_prompt(plain_text):
+    """
+    Use GPT-4 to convert plain English instructions into a professional,
+    optimized prompt for conversation analysis.
+    """
+    system_prompt = """You are an expert prompt engineer. Your job is to take plain English instructions 
+and convert them into clear, professional, structured prompts for analyzing conversation transcripts.
 
-def trigger_preliminary_transcription(conversation_id, chunk_ids):
-    """
-    Wrapper for transcribe_chunks_preliminary() for backward compatibility.
-    """
-    return transcribe_chunks_preliminary(conversation_id, chunk_ids)
+Guidelines:
+- Make the prompt clear and actionable
+- Use numbered lists for multiple analysis points
+- Ask for specific evidence/quotes from the conversation
+- Include any rating scales or categorizations requested
+- Keep it concise but comprehensive
+- Format for easy reading
 
+Return ONLY the optimized prompt, no explanations."""
 
-def trigger_final_transcription(conversation_id):
-    """
-    Wrapper for transcribe_final_audio() for backward compatibility.
-    """
-    return transcribe_final_audio(conversation_id)
+    try:
+        client = get_openai_client()
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Convert this into an optimized analysis prompt:\n\n{plain_text}"}
+            ],
+            temperature=0.7,
+            max_tokens=800
+        )
+
+        optimized = response.choices[0].message.content.strip()
+        print(f"Optimized prompt successfully: {len(optimized)} characters")
+        return optimized
+
+    except Exception as e:
+        print(f"Error optimizing prompt: {e}")
+        import traceback
+        traceback.print_exc()
+        return plain_text  # Fallback to original

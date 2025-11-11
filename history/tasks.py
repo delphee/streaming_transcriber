@@ -1,14 +1,13 @@
 from django.utils import timezone
 from django.conf import settings
 from history.st_api import jobs_api_call, appointment_assignments_api_call, customers_api_call, locations_api_call, estimates_api_call
-from history.models import DispatchJob, HistoryJob
+from history.models import DispatchJob
 from streaming.models import UserProfile
 from django_q.models import Task
 from datetime import timedelta
 from history.push_notifications import send_tech_status_push
 from history.st_api import invoices_api_call
-import boto3
-from chunking.s3_handler import get_s3_client, generate_presigned_download_url
+from chunking.s3_handler_hybrid import get_s3_client, generate_presigned_download_url
 import json
 import tiktoken
 
@@ -99,71 +98,6 @@ def pollA():
     except Exception as e:
         print(f"PollA failed: {e}")
 
-
-def pollB():  # A less-frequent polling to catch any job completions that didn't trigger a JobComplete Webhook
-    try:      # No reason pollA can't catch all of these.  NOT USED
-        print("10 minute poll...")
-        dispatch_jobs = DispatchJob.objects.filter(active=True, status="Working")
-        for d_job in dispatch_jobs:
-            jobs = jobs_api_call(ids=d_job.job_id)
-            if len(jobs) == 0:
-                print(f"Job {d_job.job_id} not found; setting status to 'Done'")
-                # Job was deleted (?) but recording may have started already
-                d_job.status = "Done"
-                d_job.active = False
-                d_job.save()
-                continue
-            job = jobs[0]
-            if "jobStatus" in job and job["jobStatus"] in ["Canceled", "Hold"]:
-                # Recording may have started already
-                d_job.status = "Done"
-                d_job.active = False
-                d_job.polling_active = False
-                d_job.save()
-                continue
-            appointment_assignments = appointment_assignments_api_call(appointmentIds=d_job.appointment_id)
-            if len(appointment_assignments) == 0:
-                # Appointment canceled, but recording may have started already
-                print(f"Appointment canceled (?) for job {d_job.job_id}")
-                d_job.status = "Done"
-                d_job.active = False
-                d_job.save()
-                continue
-            #
-            #   Find tech's data in list, if it is there
-            #
-            techusers = [str(o.st_id) for o in UserProfile.objects.all()]
-
-            for assignment in appointment_assignments:
-                if str(assignment["technicianId"]) not in techusers:
-                    # This would be a ride-along or helper
-                    continue
-                #
-                #   In the case of multiple techs, we need to be working with the right assignment for the d_job tech_id
-                #
-                if str(assignment["technicianId"]) != d_job.tech_id:
-                    continue
-                if assignment["status"] in ["Done", "Scheduled"]:  # Recording should not be happening; stop it if it is
-                    print(f"Setting DispatchJob status to 'Done' for job {d_job.job_id}")
-                    d_job.status = "Done"
-                    d_job.polling_active = False
-                    d_job.active = False
-                    d_job.save()
-                    continue
-                if assignment["status"] == "Dispatched":  # Tech arrived on wrong job (??) Reset DispatchJob
-                    print(f"Setting DispatchJob status back to 'Dispatched' for job {d_job.job_id}")
-                    d_job.status = "Dispatched"
-                    d_job.polling_active = True
-                    d_job.active = True
-                    d_job.save()
-        cutoff = timezone.now() - timedelta(days=1)
-        Task.objects.filter(stopped__lt=cutoff).delete()
-    except Exception as e:
-        print(f"PollB failed: {e}")
-
-
-def compile_document(job_id):
-    print("Compiling Document...")
 
 
 def build_ai_job_document(dispatch_job_id, customer_id, location_id):

@@ -40,3 +40,4 @@ htmlcov/
 
 # Heroku
 *.env.production
+/streaming/templates/unused_templates/

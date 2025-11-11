@@ -34,32 +34,26 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
 from django_q.tasks import async_task
-from .models import ChunkedConversation, Speaker, TranscriptSegment
-from streaming.models import User
 from history.models import DispatchJob
 from history.st_api import appointment_assignments_api_call
 from streaming.models import UserProfile
 from .models import ChunkedConversation, AudioChunk, Speaker, TranscriptSegment
 from streaming.auth_views import get_user_from_token
-from .s3_handler import (
-    generate_presigned_upload_url,
-    generate_presigned_download_url,
-    verify_file_exists,
-    get_file_size,
-    delete_conversation_audio
-)
 
 from .s3_handler_hybrid import (
+        generate_presigned_download_url,
+        generate_presigned_upload_url,
         start_multipart_upload,
         upload_chunk_hybrid,
         abort_multipart_upload,
         concatenate_and_upload_small_conversation,
-        build_multipart_from_chunks
+        build_multipart_from_chunks,
+        delete_conversation_audio,
+        verify_file_exists,
+        get_file_size,
     )
 
 from .transcription import (
-    transcribe_chunks_preliminary,
-    should_trigger_preliminary_transcription,
     transcribe_final_audio,
     search_transcripts
 )

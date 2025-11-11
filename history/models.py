@@ -62,16 +62,6 @@ class DispatchJob(models.Model):
                 f"{TECHS[self.tech_id] if self.tech_id in TECHS else ''} {'DOC' if self.ai_document_built else ''}")
 
 
-class HistoryJob(models.Model):
-    job_id = models.CharField(max_length=50)
-    appointment_id = models.CharField(max_length=50)
-    ready = models.BooleanField(default=False)
-    data = models.TextField()
-    active = models.BooleanField(default=True)
-
-    def __str__(self):
-        return f"{self.job_id} - {self.appointment_id} {'Ready' if self.ready and self.active else ''}"
-
 class DeviceToken(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE)

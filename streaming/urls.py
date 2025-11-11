@@ -22,8 +22,6 @@ urlpatterns = [
 
     # Dashboard & Main Views
     path('', dashboard_view, name='dashboard'),
-    #path('conversations/', views.conversation_list, name='conversation_list'),
-    #path('conversations/<str:conversation_id>/', views.conversation_detail, name='conversation_detail'),
 
     # User Management (Admin only)
     path('users/', views.user_management, name='user_management'),
@@ -42,9 +40,4 @@ urlpatterns = [
     path('prompts/<int:prompt_id>/edit/', views.prompt_edit, name='prompt_edit'),
     path('prompts/<int:prompt_id>/delete/', views.prompt_delete, name='prompt_delete'),
     path('prompts/<int:prompt_id>/assign/', views.prompt_assign, name='prompt_assign'),
-
-    # API Endpoints for iOS
-    #path('api/conversations/', views.api_conversation_list, name='api_conversation_list'),
-    #path('api/conversations/<str:conversation_id>/', views.api_conversation_detail, name='api_conversation_detail'),
-    #path('api/conversations/<str:conversation_id>/upload-hq-audio/', views.api_upload_hq_audio, name='api_upload_hq_audio'),
 ]

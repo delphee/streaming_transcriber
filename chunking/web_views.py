@@ -7,9 +7,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib import messages
-from django.db.models import Q, Count
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.db.models import Q
 import json
 
 from .models import ChunkedConversation, Speaker, TranscriptSegment

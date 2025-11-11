@@ -505,11 +505,82 @@ def delete_conversation_audio(conversation):
 
     return results
 
+def generate_presigned_upload_url(conversation_id, username, expiration=None):
+    """
+    Generate a presigned URL for iOS to upload the complete FLAC file directly to S3.
+    This bypasses Django entirely for the final upload.
 
-def generate_presigned_download_url(s3_url, expiration=3600):
-    """Generate presigned URL for download."""
+    Args:
+        conversation_id: Conversation UUID
+        username: Username for folder structure
+        expiration: URL expiration in seconds (default from settings)
+
+    Returns:
+        dict: {
+            'upload_url': presigned PUT URL,
+            's3_url': final S3 URL after upload,
+            'expires_in': expiration seconds
+        }
+    """
     try:
         s3_client = get_s3_client()
+        safe_username = sanitize_username_for_s3(username)
+
+        if expiration is None:
+            expiration = settings.PRESIGNED_URL_EXPIRATION
+
+        # S3 key for final complete file
+        s3_key = f"final/{safe_username}/{conversation_id}/complete.flac"
+
+        print(f"🔐 Generating presigned upload URL for: {s3_key}")
+        print(f"   Expires in: {expiration} seconds")
+
+        # Generate presigned PUT URL
+        presigned_url = s3_client.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': settings.AWS_STORAGE_BUCKET_NAME,
+                'Key': s3_key,
+                'ContentType': 'audio/flac'
+            },
+            ExpiresIn=expiration,
+            HttpMethod='PUT'
+        )
+
+        # Final S3 URL (what it will be after upload)
+        s3_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{s3_key}"
+
+        print(f"✅ Presigned URL generated successfully")
+
+        return {
+            'upload_url': presigned_url,
+            's3_url': s3_url,
+            'expires_in': expiration
+        }
+
+    except ClientError as e:
+        print(f"❌ Error generating presigned URL: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def generate_presigned_download_url(s3_url, expiration=3600):
+    """
+    Generate a presigned URL for temporary download access to an S3 file.
+    Used for providing temporary access to audio files.
+
+    Args:
+        s3_url: Full S3 URL
+        expiration: URL expiration in seconds (default 1 hour)
+
+    Returns:
+        str: Presigned download URL or None on error
+    """
+    try:
+        s3_client = get_s3_client()
+
+        # Extract key from URL
         key = s3_url.split('.amazonaws.com/')[-1]
 
         presigned_url = s3_client.generate_presigned_url(
@@ -547,7 +618,6 @@ def verify_file_exists(s3_url):
         print(f"❌ Error verifying file: {e}")
         return False
 
-
 def get_file_size(s3_url):
     """Get file size without downloading."""
     try:
@@ -563,4 +633,32 @@ def get_file_size(s3_url):
 
     except ClientError as e:
         print(f"❌ Error getting file size: {e}")
+        return None
+
+def generate_presigned_url(s3_url, expiration=3600):
+    """
+    Generate a pre-signed URL for temporary access to a private S3 file.
+    Default expiration is 1 hour (3600 seconds).
+    """
+    try:
+        s3_client = get_s3_client()
+
+        # Extract key from URL
+        key = s3_url.split('.amazonaws.com/')[-1]
+
+        # Generate pre-signed URL
+        presigned_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': settings.AWS_STORAGE_BUCKET_NAME,
+                'Key': key
+            },
+            ExpiresIn=expiration
+        )
+
+        print(f"ðŸ”— Generated pre-signed URL (expires in {expiration}s)")
+        return presigned_url
+
+    except ClientError as e:
+        print(f"âŒ Error generating pre-signed URL: {e}")
         return None

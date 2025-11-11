@@ -8,7 +8,7 @@ Django admin interface for chunking app.
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import ChunkedConversation, AudioChunk, Speaker, TranscriptSegment
-
+from .s3_handler_hybrid import delete_conversation_audio
 
 class AudioChunkInline(admin.TabularInline):
     model = AudioChunk
@@ -104,7 +104,7 @@ class ChunkedConversationAdmin(admin.ModelAdmin):
     mark_save_permanently.short_description = "Mark selected as permanent (no auto-delete)"
 
     def delete_audio_files(self, request, queryset):
-        from .s3_handler import delete_conversation_audio
+
         total_chunks = 0
         total_finals = 0
         for conversation in queryset:

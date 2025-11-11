@@ -10,7 +10,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.conf import settings
 from chunking.models import ChunkedConversation
-from chunking.s3_handler import delete_conversation_audio, get_s3_client
+from chunking.s3_handler_hybrid import delete_conversation_audio, get_s3_client
 from history.models import DispatchJob
 
 
