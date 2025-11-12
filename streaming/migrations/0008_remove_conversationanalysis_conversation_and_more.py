@@ -4,15 +4,25 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('streaming', '0007_userprofile_st_id'),
     ]
 
     operations = [
+        # STEP 1: Remove constraints FIRST (before removing fields)
+        migrations.AlterUniqueTogether(
+            name='speaker',
+            unique_together=None,
+        ),
+
+        # STEP 2: Remove foreign key relationships
         migrations.RemoveField(
             model_name='conversationanalysis',
             name='conversation',
+        ),
+        migrations.RemoveField(
+            model_name='conversationanalysis',
+            name='prompt_used',
         ),
         migrations.RemoveField(
             model_name='speaker',
@@ -23,20 +33,11 @@ class Migration(migrations.Migration):
             name='conversation',
         ),
         migrations.RemoveField(
-            model_name='conversationanalysis',
-            name='prompt_used',
-        ),
-        migrations.AlterUniqueTogether(
-            name='speaker',
-            unique_together=None,
-        ),
-        migrations.RemoveField(
             model_name='transcriptsegment',
             name='speaker',
         ),
-        migrations.DeleteModel(
-            name='Conversation',
-        ),
+
+        # STEP 3: Delete models (after all relationships are removed)
         migrations.DeleteModel(
             name='ConversationAnalysis',
         ),
@@ -45,5 +46,8 @@ class Migration(migrations.Migration):
         ),
         migrations.DeleteModel(
             name='TranscriptSegment',
+        ),
+        migrations.DeleteModel(
+            name='Conversation',
         ),
     ]

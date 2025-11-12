@@ -90,7 +90,7 @@ def get_dispatched_employees(appointmentId, customerId, locationId):
     ios_user = False
     try:
         text = "No DispatchJob created"
-        techusers = [str(o.st_id) for o in UserProfile.objects.all()]
+        techusers = [str(o.st_id) for o in UserProfile.objects.filter(active=True)]
         if appointmentId:
             assignments = appointment_assignments_api_call(appointmentIds=appointmentId)
             for assignment in assignments:

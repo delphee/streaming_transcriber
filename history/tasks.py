@@ -18,7 +18,7 @@ def pollA():
         for d_job in dispatch_jobs:
             # Get user for push notifications
             try:
-                user_profile = UserProfile.objects.get(st_id=d_job.tech_id)
+                user_profile = UserProfile.objects.get(st_id=d_job.tech_id, active=True)
                 user = user_profile.user
             except UserProfile.DoesNotExist:
                 user = None
@@ -57,7 +57,7 @@ def pollA():
             #
             #   Find tech's data in list, if it is there
             #
-            techusers = [str(o.st_id) for o in UserProfile.objects.all()]
+            techusers = [str(o.st_id) for o in UserProfile.objects.filter(active=True)]
 
             for assignment in appointment_assignments:
                 if str(assignment["technicianId"]) not in techusers:
