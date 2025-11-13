@@ -1304,13 +1304,18 @@ def upload_chunk(request):
     ).order_by('chunk_number')
 
     if untranscribed.count() >= batch_size:
+        # ATOMIC check-and-set: only ONE request will successfully set the flag
+        # This prevents race conditions when multiple chunks arrive simultaneously
+        rows_updated = ChunkedConversation.objects.filter(
+            id=conversation_id,
+            is_transcribing=False  # Only update if NOT already transcribing
+        ).update(is_transcribing=True)
 
-        if conversation.is_transcribing:
+        if rows_updated == 0:
+            # Another request already grabbed the transcription lock
             print(f"⏳ Transcription already in progress, skipping")
         else:
-            conversation.is_transcribing = True
-            conversation.save()
-
+            # We successfully grabbed the lock - start transcription
             print(f"🎤 Triggering batch transcription ({batch_size} chunks)")
 
             chunk_ids = list(untranscribed[:batch_size].values_list('id', flat=True))
