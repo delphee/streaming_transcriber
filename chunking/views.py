@@ -117,7 +117,7 @@ def get_dispatched_employees(appointmentId, customerId, locationId):
     return ios_user
 
 def authenticate_request(request):
-    print("authenticate_request() is running!......................")
+    #print("authenticate_request() is running!......................")
     """
     Helper to authenticate token from Authorization header.
     Returns (user, error_response) tuple.

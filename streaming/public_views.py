@@ -12,3 +12,19 @@ def public_landing(request):
     No authentication required - helps prevent phishing flags.
     """
     return render(request, 'streaming/public_landing.html')
+
+
+def privacy_policy(request):
+    """
+    Privacy policy page - explains data collection and usage.
+    Accessible without authentication.
+    """
+    return render(request, 'streaming/privacy_policy.html')
+
+
+
+
+
+
+
+

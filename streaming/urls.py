@@ -8,7 +8,7 @@ from django.urls import path
 from . import views, auth_views
 from django.views.generic import RedirectView
 from chunking.web_views import dashboard as dashboard_view
-from .public_views import public_landing
+from .public_views import public_landing, privacy_policy
 
 urlpatterns = [
     # Web Authentication
@@ -22,6 +22,8 @@ urlpatterns = [
     path('api/auth/logout/', auth_views.ios_logout, name='ios_logout'),
 
     # Dashboard & Main Views
+    # Public pages (no auth required)
+    path('privacy-policy/', privacy_policy, name='privacy_policy'),
     path('', public_landing, name='public_landing'),
     path('dashboard/', dashboard_view, name='dashboard'),
 

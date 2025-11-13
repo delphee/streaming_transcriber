@@ -13,7 +13,7 @@ import tiktoken
 
 def pollA():
     try:
-        print("pollA...")
+        #print("pollA...")
         dispatch_jobs = DispatchJob.objects.filter(active=True)
         for d_job in dispatch_jobs:
             # Get user for push notifications
