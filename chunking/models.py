@@ -52,6 +52,7 @@ class ChunkedConversation(models.Model):
     is_chunks_complete = models.BooleanField(default=False)  # All chunks received
     is_final_uploaded = models.BooleanField(default=False)  # Complete file uploaded
     is_analyzed = models.BooleanField(default=False)  # Final transcription complete
+    is_transcribing = models.BooleanField(default=False)
 
     # === TRANSCRIPTION RESULTS ===
     full_transcript = models.TextField(blank=True)  # Complete conversation transcript

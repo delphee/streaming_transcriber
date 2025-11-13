@@ -1304,20 +1304,35 @@ def upload_chunk(request):
     ).order_by('chunk_number')
 
     if untranscribed.count() >= batch_size:
-        print(f"🎤 Triggering batch transcription ({batch_size} chunks)")
 
-        chunk_ids = list(untranscribed[:batch_size].values_list('id', flat=True))
+        if conversation.is_transcribing:
+            print(f"⏳ Transcription already in progress, skipping")
+        else:
+            conversation.is_transcribing = True
+            conversation.save()
 
-        def transcribe_batch():
-            try:
-                from .transcription import transcribe_chunks_preliminary
-                transcribe_chunks_preliminary(conversation_id, chunk_ids)
-            except Exception as e:
-                print(f"❌ Preliminary transcription error: {e}")
-                import traceback
-                traceback.print_exc()
+            print(f"🎤 Triggering batch transcription ({batch_size} chunks)")
 
-        threading.Thread(target=transcribe_batch, daemon=True).start()
+            chunk_ids = list(untranscribed[:batch_size].values_list('id', flat=True))
+
+            def transcribe_batch():
+                try:
+                    from .transcription import transcribe_chunks_preliminary
+                    transcribe_chunks_preliminary(conversation_id, chunk_ids)
+                except Exception as e:
+                    print(f"❌ Preliminary transcription error: {e}")
+                    import traceback
+                    traceback.print_exc()
+                finally:
+                    # Clear flag when done
+                    try:
+                        conv = ChunkedConversation.objects.get(id=conversation_id)
+                        conv.is_transcribing = False
+                        conv.save()
+                    except:
+                        pass
+
+            threading.Thread(target=transcribe_batch, daemon=True).start()
 
     return JsonResponse({
         'success': True,
