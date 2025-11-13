@@ -1049,58 +1049,66 @@ def upload_chunk(request):
     # Validate start_time (server-side check)
     expected_start = chunk_number * 30
     if chunk_start_time != expected_start:
-        print(f"⚠️  Start time mismatch! Expected {expected_start}, got {chunk_start_time}")
+        print(f"Start time mismatch! Expected {expected_start}, got {chunk_start_time}")
         print(f"   Using calculated: {expected_start}")
         chunk_start_time = expected_start
 
+    # Use transaction with row-level locking to prevent race conditions
+    from django.db import transaction
 
+    with transaction.atomic():
+        # Get or create conversation with lock to prevent concurrent modifications
+        conversation, created = ChunkedConversation.objects.select_for_update().get_or_create(
+            id=conversation_id,
+            defaults={
+                'recorded_by': user,
+                'started_at': timezone.now()
+            }
+        )
 
-    conversation, created = ChunkedConversation.objects.get_or_create(
-        id=conversation_id,
-        defaults={
-            'recorded_by': user,
-            'started_at': timezone.now()
-        }
-    )
+        if created:
+            print(f"Created conversation {conversation_id}")
 
-    if created:
-        print(f"✅ Created conversation {conversation_id}")
+        # CRITICAL: Check idempotency FIRST, before any S3 operations
+        # This prevents duplicate uploads and avoids creating orphaned multipart uploads
+        existing_chunk = AudioChunk.objects.filter(
+            conversation=conversation,
+            chunk_number=chunk_number
+        ).first()
 
-    # First chunk: start multipart
-    if chunk_number == 0:
-        print(f"🚀 First chunk - starting multipart upload")
-
-        result = start_multipart_upload(conversation_id, user.username)
-
-        if not result['success']:
+        if existing_chunk:
+            print(f"Chunk {chunk_number} already exists - skipping duplicate upload")
             return JsonResponse({
-                'error': 'Failed to start multipart upload',
-                'details': result.get('error')
-            }, status=500)
+                'success': True,
+                'chunk_number': chunk_number,
+                'total_received': len(conversation.received_chunks),
+                'is_complete': conversation.is_chunks_complete,
+                'message': 'Already received'
+            })
 
-        conversation.multipart_upload_id = result['upload_id']
-        conversation.multipart_s3_key = result['s3_key']
-        conversation.final_audio_url = result['s3_url']
-        conversation.multipart_parts = []
-        conversation.save()
+        # First chunk: start multipart upload (only if not already in progress)
+        if chunk_number == 0:
+            if conversation.multipart_upload_id:
+                # Multipart already started by another concurrent request
+                print(f"Multipart upload already in progress: {conversation.multipart_upload_id}")
+            else:
+                print(f"First chunk - starting multipart upload")
 
-        print(f"✅ Multipart initialized: {result['upload_id']}")
+                result = start_multipart_upload(conversation_id, user.username)
 
-    # Check idempotency
-    existing_chunk = AudioChunk.objects.filter(
-        conversation=conversation,
-        chunk_number=chunk_number
-    ).first()
+                if not result['success']:
+                    return JsonResponse({
+                        'error': 'Failed to start multipart upload',
+                        'details': result.get('error')
+                    }, status=500)
 
-    if existing_chunk:
-        print(f"⚠️  Chunk {chunk_number} already exists")
-        return JsonResponse({
-            'success': True,
-            'chunk_number': chunk_number,
-            'total_received': len(conversation.received_chunks),
-            'is_complete': conversation.is_chunks_complete,
-            'message': 'Already received'
-        })
+                conversation.multipart_upload_id = result['upload_id']
+                conversation.multipart_s3_key = result['s3_key']
+                conversation.final_audio_url = result['s3_url']
+                conversation.multipart_parts = []
+                conversation.save()
+
+                print(f"Multipart initialized: {result['upload_id']}")
 
     # Upload chunk (individual + multipart)
     if not conversation.multipart_upload_id:
