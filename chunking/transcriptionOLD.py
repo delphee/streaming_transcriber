@@ -20,13 +20,11 @@ from functools import lru_cache
 
 # Initialize clients
 aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
-
-
-# openai_client = None
-# if hasattr(settings, 'OPENAI_API_KEY') and settings.OPENAI_API_KEY:
+#openai_client = None
+#if hasattr(settings, 'OPENAI_API_KEY') and settings.OPENAI_API_KEY:
 #    openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
 #    print("✅ OpenAI client initialized")
-# else:
+#else:
 #    print("⚠️ OpenAI API key not found - AI analysis will be skipped")
 
 
@@ -239,8 +237,7 @@ def transcribe_final_audio(conversation_id):
 
         print(f"âœ… Final transcription complete")
         print(f"   Text length: {len(transcript.text)} chars")
-        print(
-            f"   Speakers detected: {len(set([u.speaker for u in transcript.utterances])) if transcript.utterances else 0}")
+        print(f"   Speakers detected: {len(set([u.speaker for u in transcript.utterances])) if transcript.utterances else 0}")
 
         # Save full transcript text
         conversation.full_transcript = transcript.text
@@ -525,21 +522,12 @@ def generate_formatted_transcript(conversation):
 
 def analyze_conversation(conversation):
     """
-    Perform AI analysis of the conversation using the user's assigned custom prompt.
-
-    The custom prompt has COMPLETE CONTROL over:
-    - What analysis is performed
-    - What questions are asked
-    - What JSON structure is returned
-
-    Standard fields (summary, action_items, key_topics, sentiment, coaching_feedback)
-    will be populated IF they exist in the custom prompt's response, maintaining
-    backward compatibility. If the custom prompt uses a different structure,
-    the full response will be stored in the summary field.
-
-    This allows for flexible, role-specific analysis (e.g., rating technicians,
-    extracting pricing info, compliance checking, etc.) without being locked
-    into a rigid structure.
+    Perform comprehensive AI analysis of the conversation using user's assigned prompt.
+    - Summary
+    - Action items
+    - Key topics
+    - Sentiment
+    - Coaching feedback
 
     Args:
         conversation: ChunkedConversation instance
@@ -581,15 +569,31 @@ def analyze_conversation(conversation):
             print(f"   No assigned prompt found, using generic analysis")
             custom_instructions = "Analyze this conversation and provide professional insights."
 
-        # Build analysis prompt using ONLY the custom instructions
-        # Do NOT override with hardcoded structure - let the custom prompt dictate everything
+        # Build comprehensive analysis prompt with custom instructions
         prompt = f"""{custom_instructions}
 
 TRANSCRIPT:
-{transcript[:8000]}
+{transcript[:8000]}  
 
-IMPORTANT: Respond with ONLY valid JSON (no markdown, no explanations outside the JSON).
-Your response must be a single JSON object that can be parsed."""
+Please analyze this conversation and provide:
+
+1. **Summary**: A concise 2-3 sentence summary of what was discussed
+2. **Action Items**: List of specific action items or next steps mentioned (if any)
+3. **Key Topics**: Main topics or themes discussed (3-5 topics)
+4. **Sentiment**: Overall sentiment/tone (positive, neutral, negative, or mixed)
+5. **Coaching Feedback**: Constructive feedback for improving communication effectiveness
+
+RESPONSE FORMAT:
+Respond with ONLY valid JSON (no markdown):
+{{
+    "summary": "2-3 sentence summary",
+    "action_items": [
+        {{"who": "Person responsible", "what": "Action description", "when": "Timeframe if mentioned"}}
+    ],
+    "key_topics": ["Topic 1", "Topic 2", "Topic 3"],
+    "sentiment": "positive|neutral|negative|mixed",
+    "coaching_feedback": "Constructive feedback focused on communication effectiveness, rapport building, clarity, and professionalism"
+}}"""
 
         response = openai_client.chat.completions.create(
             model="gpt-4",
@@ -616,40 +620,21 @@ Your response must be a single JSON object that can be parsed."""
 
         analysis = json.loads(result_text)
 
-        # Store the full custom analysis response for flexibility
-        # This allows custom prompts to return whatever structure they want
-        full_analysis_json = json.dumps(analysis, indent=2)
-
-        # Try to populate standard fields if they exist in the response
-        # This maintains backward compatibility with existing prompts
+        # Save analysis results
         conversation.summary = analysis.get('summary', '')
         conversation.action_items = analysis.get('action_items', [])
         conversation.key_topics = analysis.get('key_topics', [])
         conversation.sentiment = analysis.get('sentiment', '')
-
-        # For coaching_feedback, prefer the actual field but fall back to full JSON if not present
         conversation.coaching_feedback = analysis.get('coaching_feedback', '')
-
-        # If no standard fields were populated, store the full JSON in summary for visibility
-        if not conversation.summary and not conversation.coaching_feedback:
-            # Custom prompt didn't use standard structure - store full response in summary
-            conversation.summary = f"Custom Analysis:\n{full_analysis_json}"
-
         conversation.analysis_error = ""  # Clear any previous errors
 
         conversation.save()
 
         print(f"✅ Conversation analysis complete")
-        print(f"   Using custom prompt: {assigned_prompt.name if assigned_prompt else 'generic'}")
-        if conversation.summary:
-            print(f"   Summary: {conversation.summary[:100]}...")
-        if conversation.action_items:
-            print(f"   Action items: {len(conversation.action_items)}")
-        if conversation.key_topics:
-            print(f"   Key topics: {', '.join(conversation.key_topics)}")
-        if conversation.sentiment:
-            print(f"   Sentiment: {conversation.sentiment}")
-        print(f"   Full analysis stored successfully")
+        print(f"   Summary: {conversation.summary[:100]}...")
+        print(f"   Action items: {len(conversation.action_items)}")
+        print(f"   Key topics: {', '.join(conversation.key_topics)}")
+        print(f"   Sentiment: {conversation.sentiment}")
 
     except json.JSONDecodeError as e:
         error_msg = f"Failed to parse AI analysis: {str(e)}"
@@ -664,6 +649,10 @@ Your response must be a single JSON object that can be parsed."""
         traceback.print_exc()
         conversation.analysis_error = error_msg
         conversation.save()
+
+
+
+
 
 
 # === SEARCH FUNCTIONALITY ===
