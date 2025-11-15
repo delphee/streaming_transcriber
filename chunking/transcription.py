@@ -20,13 +20,11 @@ from functools import lru_cache
 
 # Initialize clients
 aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
-
-
-# openai_client = None
-# if hasattr(settings, 'OPENAI_API_KEY') and settings.OPENAI_API_KEY:
+#openai_client = None
+#if hasattr(settings, 'OPENAI_API_KEY') and settings.OPENAI_API_KEY:
 #    openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
 #    print("✅ OpenAI client initialized")
-# else:
+#else:
 #    print("⚠️ OpenAI API key not found - AI analysis will be skipped")
 
 
@@ -239,8 +237,7 @@ def transcribe_final_audio(conversation_id):
 
         print(f"âœ… Final transcription complete")
         print(f"   Text length: {len(transcript.text)} chars")
-        print(
-            f"   Speakers detected: {len(set([u.speaker for u in transcript.utterances])) if transcript.utterances else 0}")
+        print(f"   Speakers detected: {len(set([u.speaker for u in transcript.utterances])) if transcript.utterances else 0}")
 
         # Save full transcript text
         conversation.full_transcript = transcript.text
@@ -523,6 +520,68 @@ def generate_formatted_transcript(conversation):
     print(f"✅ Formatted transcript generated: {len(formatted_lines)} segments")
 
 
+def format_analysis_as_text(analysis, prompt=None):
+    """
+    Convert JSON analysis into human-readable text format.
+
+    Args:
+        analysis: Dict from AI response
+        prompt: AnalysisPrompt object (optional, for context)
+
+    Returns:
+        str: Formatted human-readable text
+    """
+    lines = []
+
+    # Add prompt name if available
+    if prompt:
+        lines.append(f"Analysis: {prompt.name}")
+        lines.append("=" * 50)
+        lines.append("")
+
+    # Format each key-value pair nicely
+    for key, value in analysis.items():
+        # Convert snake_case to Title Case
+        formatted_key = key.replace('_', ' ').title()
+
+        if isinstance(value, list):
+            if not value:
+                continue
+            lines.append(f"{formatted_key}:")
+            for item in value:
+                if isinstance(item, dict):
+                    # Handle dict items (like action items)
+                    item_parts = []
+                    for k, v in item.items():
+                        if v:
+                            item_parts.append(f"{k}: {v}")
+                    lines.append(f"  • {', '.join(item_parts)}")
+                else:
+                    lines.append(f"  • {item}")
+            lines.append("")
+
+        elif isinstance(value, dict):
+            lines.append(f"{formatted_key}:")
+            for k, v in value.items():
+                formatted_subkey = k.replace('_', ' ').title()
+                lines.append(f"  {formatted_subkey}: {v}")
+            lines.append("")
+
+        elif isinstance(value, (int, float)):
+            lines.append(f"{formatted_key}: {value}")
+
+        elif isinstance(value, str) and value:
+            # For longer text, add spacing
+            if len(value) > 100:
+                lines.append(f"{formatted_key}:")
+                lines.append(value)
+                lines.append("")
+            else:
+                lines.append(f"{formatted_key}: {value}")
+
+    return "\n".join(lines)
+
+
 def analyze_conversation(conversation):
     """
     Perform AI analysis of the conversation using the user's assigned custom prompt.
@@ -616,24 +675,17 @@ Your response must be a single JSON object that can be parsed."""
 
         analysis = json.loads(result_text)
 
-        # Store the full custom analysis response for flexibility
-        # This allows custom prompts to return whatever structure they want
-        full_analysis_json = json.dumps(analysis, indent=2)
+        # Convert the JSON analysis to human-readable text
+        readable_text = format_analysis_as_text(analysis, assigned_prompt)
 
-        # Try to populate standard fields if they exist in the response
-        # This maintains backward compatibility with existing prompts
-        conversation.summary = analysis.get('summary', '')
+        # Store the human-readable text in summary
+        conversation.summary = readable_text
+
+        # Still populate structured fields if they exist (for backward compatibility)
         conversation.action_items = analysis.get('action_items', [])
         conversation.key_topics = analysis.get('key_topics', [])
         conversation.sentiment = analysis.get('sentiment', '')
-
-        # For coaching_feedback, prefer the actual field but fall back to full JSON if not present
         conversation.coaching_feedback = analysis.get('coaching_feedback', '')
-
-        # If no standard fields were populated, store the full JSON in summary for visibility
-        if not conversation.summary and not conversation.coaching_feedback:
-            # Custom prompt didn't use standard structure - store full response in summary
-            conversation.summary = f"Custom Analysis:\n{full_analysis_json}"
 
         conversation.analysis_error = ""  # Clear any previous errors
 
@@ -664,6 +716,10 @@ Your response must be a single JSON object that can be parsed."""
         traceback.print_exc()
         conversation.analysis_error = error_msg
         conversation.save()
+
+
+
+
 
 
 # === SEARCH FUNCTIONALITY ===
@@ -781,3 +837,5 @@ Return ONLY the optimized prompt, no explanations."""
         import traceback
         traceback.print_exc()
         return plain_text  # Fallback to original
+
+    
