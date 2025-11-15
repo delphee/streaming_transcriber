@@ -838,4 +838,3 @@ Return ONLY the optimized prompt, no explanations."""
         traceback.print_exc()
         return plain_text  # Fallback to original
 
-    
