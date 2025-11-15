@@ -492,7 +492,13 @@ def query_ai_service(job_document, user_query, conversation_history=None):
                 "If information is not available in the job data, say so politely. "
                 "Keep responses brief and actionable - the technician is likely driving or preparing for the job. "
                 "Maintain a clean and professional tone at all times. "
-                "If the user uses profanity or vulgar language, ignore it and respond professionally without acknowledging the inappropriate language."
+                "If the user uses profanity or vulgar language, ignore it and respond professionally without acknowledging the inappropriate language. "
+                "\n"
+                "CRITICAL: When providing numbers (addresses, phone numbers, zip codes, etc.), accuracy is imperative. "
+                "Read numbers exactly as they appear - for example, 20115 is 'twenty thousand one hundred fifteen' or 'two zero one one five', NOT 'two thousand fifteen'. "
+                "Double-check all numeric information before responding. "
+                "\n"
+                "When providing addresses, include the street address and city, but OMIT the zip code unless specifically requested."
             )
         },
         {
