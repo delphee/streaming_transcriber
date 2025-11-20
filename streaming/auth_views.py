@@ -65,17 +65,21 @@ def ios_login(request):
     print("ios_login running....")
     try:
         data = json.loads(request.body)
-        email = data.get('email', '').lower().strip()
+        email_or_username = data.get('email', '').lower().strip()
         password = data.get('password', '')
-        print(f"Attempting to log in >{email}< >{password}<... ")
-        if not email or not password:
-            return JsonResponse({'success': False, 'error': 'Email and password required'}, status=400)
+        print(f"Attempting to log in >{email_or_username}< >{password}<... ")
+        if not email_or_username or not password:
+            return JsonResponse({'success': False, 'error': 'Email/username and password required'}, status=400)
 
-        # Find user by email
+        # Find user by email first, then username
+        user = None
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(email=email_or_username)
         except User.DoesNotExist:
-            return JsonResponse({'success': False, 'error': 'Invalid credentials'}, status=401)
+            try:
+                user = User.objects.get(username=email_or_username)
+            except User.DoesNotExist:
+                return JsonResponse({'success': False, 'error': 'Invalid credentials'}, status=401)
 
         # Authenticate
         authenticated_user = authenticate(username=user.username, password=password)
