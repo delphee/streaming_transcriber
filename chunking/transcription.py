@@ -701,17 +701,54 @@ FORMATTING GUIDELINES:
 
         analysis = json.loads(result_text)
 
+        print(f"   Raw analysis JSON: {json.dumps(analysis, indent=2)[:500]}...")
+
         # Convert the JSON analysis to human-readable text
         readable_text = format_analysis_as_text(analysis, assigned_prompt)
+
+        # CRITICAL: Ensure no raw dict/JSON strings remain (remove all brackets)
+        # This is a safeguard in case the formatter missed something
+        if '{' in readable_text or '[' in readable_text:
+            print(f"   ⚠️  Warning: Found brackets in formatted text, applying additional cleanup")
+            # Replace common JSON patterns with readable versions
+            import re
+            # Pattern: {"score": 4, "evidence": "text"}
+            readable_text = re.sub(r'\{"score":\s*(\d+),\s*"evidence":\s*"([^"]+)"\}', r'Score: \1\n\2', readable_text)
+            # Pattern: {"key": "value"}
+            readable_text = re.sub(r'\{"([^"]+)":\s*"([^"]+)"\}', r'\1: \2', readable_text)
+            # Remove any remaining braces/brackets
+            readable_text = readable_text.replace('{', '').replace('}', '').replace('[', '').replace(']', '')
+            readable_text = readable_text.replace('",', ':').replace('":', ':').replace('"', '')
+
+        print(f"   Formatted text length: {len(readable_text)} chars")
+        print(f"   Formatted text preview: {readable_text[:200]}...")
 
         # Store the human-readable text in summary
         conversation.summary = readable_text
 
         # Still populate structured fields if they exist (for backward compatibility)
+        # Handle coaching_feedback - if it's a dict, format it too
+        coaching_data = analysis.get('coaching_feedback', '')
+        if isinstance(coaching_data, dict):
+            # Format the dict as readable text
+            coaching_lines = []
+            for key, value in coaching_data.items():
+                if isinstance(value, dict) and 'score' in value and 'evidence' in value:
+                    formatted_key = key.replace('_', ' ').title()
+                    coaching_lines.append(f"{formatted_key}:")
+                    coaching_lines.append(f"  Score: {value['score']}")
+                    coaching_lines.append(f"  {value['evidence']}")
+                    coaching_lines.append("")
+                elif isinstance(value, str):
+                    formatted_key = key.replace('_', ' ').title()
+                    coaching_lines.append(f"{formatted_key}: {value}")
+            conversation.coaching_feedback = '\n'.join(coaching_lines)
+        else:
+            conversation.coaching_feedback = coaching_data
+
         conversation.action_items = analysis.get('action_items', [])
         conversation.key_topics = analysis.get('key_topics', [])
         conversation.sentiment = analysis.get('sentiment', '')
-        conversation.coaching_feedback = analysis.get('coaching_feedback', '')
 
         conversation.analysis_error = ""  # Clear any previous errors
 
