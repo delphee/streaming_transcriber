@@ -711,7 +711,7 @@ FORMATTING GUIDELINES:
         if '{' in readable_text or '[' in readable_text:
             print(f"   ⚠️  Warning: Found brackets in formatted text, applying additional cleanup")
             # Replace common JSON patterns with readable versions
-            import re
+            #import re
             # Pattern: {"score": 4, "evidence": "text"}
             readable_text = re.sub(r'\{"score":\s*(\d+),\s*"evidence":\s*"([^"]+)"\}', r'Score: \1\n\2', readable_text)
             # Pattern: {"key": "value"}
