@@ -550,22 +550,41 @@ def format_analysis_as_text(analysis, prompt=None):
             lines.append(f"{formatted_key}:")
             for item in value:
                 if isinstance(item, dict):
-                    # Handle dict items (like action items)
-                    item_parts = []
-                    for k, v in item.items():
-                        if v:
-                            item_parts.append(f"{k}: {v}")
-                    lines.append(f"  • {', '.join(item_parts)}")
+                    # Handle dict items with special formatting for score/evidence patterns
+                    if 'score' in item and 'evidence' in item:
+                        # Format score/evidence naturally
+                        score = item.get('score', '')
+                        evidence = item.get('evidence', '')
+                        lines.append(f"  • Score: {score}")
+                        lines.append(f"    {evidence}")
+                    else:
+                        # Handle other dict structures naturally
+                        for k, v in item.items():
+                            if v:
+                                formatted_subkey = k.replace('_', ' ').title()
+                                lines.append(f"  • {formatted_subkey}: {v}")
                 else:
                     lines.append(f"  • {item}")
             lines.append("")
 
         elif isinstance(value, dict):
-            lines.append(f"{formatted_key}:")
-            for k, v in value.items():
-                formatted_subkey = k.replace('_', ' ').title()
-                lines.append(f"  {formatted_subkey}: {v}")
-            lines.append("")
+            # Special handling for score/evidence pattern
+            if 'score' in value and 'evidence' in value:
+                lines.append(f"{formatted_key}:")
+                lines.append(f"  Score: {value['score']}")
+                lines.append(f"  {value['evidence']}")
+                lines.append("")
+            else:
+                # Regular dict formatting - make it conversational
+                lines.append(f"{formatted_key}:")
+                for k, v in value.items():
+                    formatted_subkey = k.replace('_', ' ').title()
+                    if isinstance(v, str) and len(v) > 100:
+                        lines.append(f"  {formatted_subkey}:")
+                        lines.append(f"    {v}")
+                    else:
+                        lines.append(f"  {formatted_subkey}: {v}")
+                lines.append("")
 
         elif isinstance(value, (int, float)):
             lines.append(f"{formatted_key}: {value}")
@@ -648,14 +667,21 @@ TRANSCRIPT:
 {transcript[:8000]}
 
 IMPORTANT: Respond with ONLY valid JSON (no markdown, no explanations outside the JSON).
-Your response must be a single JSON object that can be parsed."""
+Your response must be a single JSON object that can be parsed.
+
+FORMATTING GUIDELINES:
+- Use clear, descriptive field names
+- For text fields, write in complete sentences and paragraphs (not bullet points in the JSON)
+- For evidence/explanation fields, write naturally as if speaking to the user
+- Avoid nested objects where possible - flatten the structure when it makes sense
+- The JSON will be converted to human-readable format, so prioritize clarity over structure"""
 
         response = openai_client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert conversation analyst providing actionable insights. Always respond with valid JSON only."
+                    "content": "You are an expert conversation analyst providing actionable insights. Always respond with valid JSON only. Write text fields in a natural, conversational style as they will be read by humans."
                 },
                 {
                     "role": "user",
