@@ -156,7 +156,7 @@ class AudioChunk(models.Model):
     speech_percentage = models.FloatField(null=True, blank=True)  # % of chunk with speech
 
     class Meta:
-        ordering = ['chunk_number']
+        ordering = ['-conversation__started_at', 'chunk_number']
         unique_together = ['conversation', 'chunk_number']
         verbose_name = 'Audio Chunk'
         verbose_name_plural = 'Audio Chunks'
