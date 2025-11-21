@@ -9,7 +9,8 @@ Status 2:  Stops recording and makes DispatchJob InActive; send SILENT notificat
 
 
 
-
+Note: In tasks.py, it might be useful to check DeviceTokens and if there isn't one, go ahead and mark as notified so we
+don't keep trying.
 
 
 
