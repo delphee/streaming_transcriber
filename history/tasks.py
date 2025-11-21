@@ -1,7 +1,7 @@
 from django.utils import timezone
 from django.conf import settings
 from history.st_api import jobs_api_call, appointment_assignments_api_call, customers_api_call, locations_api_call, estimates_api_call
-from history.models import DispatchJob
+from history.models import DispatchJob, DeviceToken
 from streaming.models import UserProfile
 from django_q.models import Task
 from datetime import timedelta
@@ -23,7 +23,7 @@ def pollA():
                 user = user_profile.user
             except UserProfile.DoesNotExist:
                 user = None
-
+                continue
             jobs = jobs_api_call(ids=d_job.job_id)
             if len(jobs) == 0 or ("jobStatus" in jobs[0] and jobs[0]["jobStatus"] in ["Canceled", "Hold","Completed"]):
                 # Job was deleted
@@ -74,6 +74,14 @@ def pollA():
                     #
                     #   Ensure ST polling for "Working" starts
                     #
+                    if not DeviceToken.objects.filter(user=user).exists():
+                        #
+                        #   If we can't notify user, user is on their own
+                        #
+                        d_job.notified_working = True
+                        d_job.polling_active = False  # Stop polling; can't notify
+                        d_job.save()
+                        continue
                     d_job.polling_active = True
                     d_job.save()
 
