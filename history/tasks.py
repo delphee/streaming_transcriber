@@ -79,7 +79,7 @@ def pollA():
 
                     # Check if history is ready and send push if not already notified
                     if not d_job.notified_history and user and d_job.ai_document_built:
-                        send_tech_status_push(user, 3, appointment_id=d_job.appointment_id)
+                        send_tech_status_push(user, 3, appointment_id=d_job.appointment_id,audible=True)
                         d_job.save()
                         print(f"Sent history ready push (result:3) for job {d_job.job_id}")
 
@@ -90,7 +90,7 @@ def pollA():
                     # Send push notification if not already sent
                     if not d_job.notified_working and user:
 
-                        send_tech_status_push(user, 1, appointment_id=d_job.appointment_id)
+                        send_tech_status_push(user, 1, appointment_id=d_job.appointment_id,audible=True)
                         #print(f"Sent working push (result:1) for job {d_job.job_id}")
 
                     d_job.save()
@@ -142,7 +142,7 @@ def build_ai_job_document(dispatch_job_id, customer_id, location_id):
             user = user_profile.user
 
             # Send notification - reusing result:3 (or we can create result:4 for AI doc ready)
-            send_tech_status_push(user, 3, appointment_id=dispatch_job.appointment_id)
+            send_tech_status_push(user, 3, appointment_id=dispatch_job.appointment_id,audible=True)
             dispatch_job.notified_history = True  # Reusing this flag
             dispatch_job.save()
             print(f"📱 Sent AI document ready notification (result:3) for job {dispatch_job.job_id} appointment {dispatch_job.appointment_id}")

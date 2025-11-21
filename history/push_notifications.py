@@ -7,7 +7,7 @@ from history.models import DeviceToken
 logger = logging.getLogger(__name__)
 
 
-async def send_tech_status_push_async(device_tokens, new_status, appointment_id, data=None):
+async def send_tech_status_push_async(device_tokens, new_status, appointment_id, data=None, audible=False):
     """
     Send push notification for tech status update
     device_tokens: list of device token strings
@@ -49,14 +49,23 @@ async def send_tech_status_push_async(device_tokens, new_status, appointment_id,
         "appointment_id": appointment_id,
     }
 
-    payload = {
+    payload = {                         # Wake up app to Stop Recording
         "aps": {
             "content-available": 1,
             "badge": 0
         },
         "result": new_status,
         "appointment_id": appointment_id
+    } if not audible else {             # Audible app for Document Ready and Start Recording
+        "aps": {
+            "alert": "Job Info Ready" if new_status==3 else "Start Recording" if new_status==1 else "",
+            "sound": "default",
+            "badge": 0
+        },
+        "result": new_status,
+        "appointment_id": appointment_id
     }
+
 
     if data:
         payload["data"] = data
@@ -94,7 +103,7 @@ async def send_tech_status_push_async(device_tokens, new_status, appointment_id,
     # await client.close()
     return bad_tokens
 
-def send_push_task(user_id, new_status, appointment_id, data=None):
+def send_push_task(user_id, new_status, appointment_id, data=None, audible=False):
     """
     Django-Q task function - runs async code
     """
@@ -113,7 +122,7 @@ def send_push_task(user_id, new_status, appointment_id, data=None):
         logger.info(f"🗑️ Deleted {deleted_count} invalid device token(s)")
 
 
-def send_tech_status_push(user, new_status, data=None, appointment_id=0):
+def send_tech_status_push(user, new_status, data=None, appointment_id=0, audible=False):
     """
     Queue push notification as background task
     Call this from your Django views
@@ -130,6 +139,7 @@ def send_tech_status_push(user, new_status, data=None, appointment_id=0):
         user.id,
         new_status,
         appointment_id,
-        data
+        data,
+        audible
     )
     logger.info(f"📤 Queued push notification for user {user.id}, status {new_status}, appointment {appointment_id}")
