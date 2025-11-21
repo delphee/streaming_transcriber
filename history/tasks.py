@@ -22,6 +22,8 @@ def pollA():
                 user_profile = UserProfile.objects.get(st_id=d_job.tech_id, active=True)
                 user = user_profile.user
             except UserProfile.DoesNotExist:
+                d_job.active = False # Can't send notifications; user on their own
+                d_job.save()
                 user = None
                 continue
             jobs = jobs_api_call(ids=d_job.job_id)
@@ -74,14 +76,6 @@ def pollA():
                     #
                     #   Ensure ST polling for "Working" starts
                     #
-                    if not DeviceToken.objects.filter(user=user).exists():
-                        #
-                        #   If we can't notify user, user is on their own
-                        #
-                        d_job.notified_working = True
-                        d_job.polling_active = False  # Stop polling; can't notify
-                        d_job.save()
-                        continue
                     d_job.polling_active = True
                     d_job.save()
 
@@ -96,7 +90,7 @@ def pollA():
                     d_job.status = "Working"  # THIS IS WHAT TRIGGERS RECORDING START; don't set active to False
                     #d_job.polling_active = True  # Should already be True; iOS polling will set to False when recording starts
                     # Send push notification if not already sent
-                    if not d_job.notified_working and user:
+                    if not d_job.notified_working and user and DeviceToken.objects.filter(user=user).exists():
 
                         send_tech_status_push(user, 1, appointment_id=d_job.appointment_id,audible=True)
                         #print(f"Sent working push (result:1) for job {d_job.job_id}")
