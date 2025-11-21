@@ -66,7 +66,7 @@ class UserProfile(models.Model):
                                         related_name='assigned_users')
 
     def __str__(self):
-        return f"Profile for {self.user.username}"
+        return f"Profile for {self.user.username} Database ID: {self.id}"
 
 
 class AuthToken(models.Model):
