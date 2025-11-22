@@ -34,7 +34,7 @@
                         </a>
                     </div>
 
-                    <!-- Navigation Links -->
+                    <!-- Navigation Links (Desktop) -->
                     <div class="hidden sm:ml-8 sm:flex sm:space-x-8">
                         <a href="{% url 'chunking_web:dashboard' %}"
                            class="{% if request.resolver_match.url_name == 'dashboard' %}border-indigo-500 text-gray-900{% else %}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{% endif %} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
@@ -55,10 +55,66 @@
                     </div>
                 </div>
 
-                <!-- User menu -->
                 <div class="flex items-center">
-                    <span class="text-sm text-gray-700 mr-4">{{ request.user.username }}</span>
-                    <a href="{% url 'web_logout' %}" class="text-sm text-gray-500 hover:text-gray-700">
+                    <!-- User menu (Desktop) -->
+                    <div class="hidden sm:flex sm:items-center">
+                        <span class="text-sm text-gray-700 mr-4">{{ request.user.username }}</span>
+                        <a href="{% url 'web_logout' %}" class="text-sm text-gray-500 hover:text-gray-700">
+                            Logout
+                        </a>
+                    </div>
+
+                    <!-- Mobile menu button -->
+                    <div class="sm:hidden">
+                        <button id="mobile-menu-button" type="button" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500" aria-controls="mobile-menu" aria-expanded="false">
+                            <span class="sr-only">Open main menu</span>
+                            <!-- Icon when menu is closed (hamburger) -->
+                            <svg id="menu-icon-closed" class="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                            </svg>
+                            <!-- Icon when menu is open (X) -->
+                            <svg id="menu-icon-open" class="hidden h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile menu, show/hide based on menu state -->
+        <div id="mobile-menu" class="hidden sm:hidden">
+            <div class="pt-2 pb-3 space-y-1">
+                <a href="{% url 'chunking_web:dashboard' %}"
+                   class="{% if request.resolver_match.url_name == 'dashboard' %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    Dashboard
+                </a>
+                <a href="{% url 'chunking_web:conversation_list' %}"
+                   class="{% if 'conversation' in request.resolver_match.url_name %}bg-indigo-50 border-indigo-500 text-indigo-700{% else %}border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800{% endif %} block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    All Conversations
+                </a>
+                <a href="{% url 'prompt_management' %}"
+                   class="border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    Prompts
+                </a>
+                <a href="{% url 'user_management' %}"
+                   class="border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800 block pl-3 pr-4 py-2 border-l-4 text-base font-medium">
+                    Users
+                </a>
+            </div>
+            <div class="pt-4 pb-3 border-t border-gray-200">
+                <div class="flex items-center px-4">
+                    <div class="flex-shrink-0">
+                        <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-indigo-500 text-white font-medium">
+                            {{ request.user.username|first|upper }}
+                        </span>
+                    </div>
+                    <div class="ml-3">
+                        <div class="text-base font-medium text-gray-800">{{ request.user.username }}</div>
+                    </div>
+                </div>
+                <div class="mt-3 space-y-1">
+                    <a href="{% url 'web_logout' %}" class="block px-4 py-2 text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100">
                         Logout
                     </a>
                 </div>
@@ -90,6 +146,32 @@
             </p>
         </div>
     </footer>
+
+    <!-- Mobile menu toggle script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const menuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            const menuIconClosed = document.getElementById('menu-icon-closed');
+            const menuIconOpen = document.getElementById('menu-icon-open');
+
+            if (menuButton && mobileMenu) {
+                menuButton.addEventListener('click', function() {
+                    const isExpanded = menuButton.getAttribute('aria-expanded') === 'true';
+
+                    // Toggle menu visibility
+                    mobileMenu.classList.toggle('hidden');
+
+                    // Toggle icons
+                    menuIconClosed.classList.toggle('hidden');
+                    menuIconOpen.classList.toggle('hidden');
+
+                    // Toggle aria-expanded
+                    menuButton.setAttribute('aria-expanded', !isExpanded);
+                });
+            }
+        });
+    </script>
 
     {% block extra_js %}{% endblock %}
 </body>
