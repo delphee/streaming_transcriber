@@ -209,7 +209,11 @@ def transcribe_final_audio(conversation_id):
             conversation.save()
             return False
 
-        print(f"   ðŸ”— Using presigned URL for final transcription")
+        print(f" Using presigned URL for final transcription")
+
+        # Use speaker count from iOS if provided, otherwise default to 2
+        speakers_expected = conversation.speakers_expected if conversation.speakers_expected else 2
+        print(f"   ðŸ'¥ Speakers expected: {speakers_expected}")
 
         # Configure for maximum quality with speaker diarization
         config = aai.TranscriptionConfig(
@@ -217,7 +221,7 @@ def transcribe_final_audio(conversation_id):
             speaker_labels=True,  # Enable speaker diarization
             punctuate=True,
             format_text=True,
-            speakers_expected=2  # Can be adjusted based on use case
+            speakers_expected=speakers_expected
         )
 
         transcriber = aai.Transcriber()

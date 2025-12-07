@@ -1031,6 +1031,17 @@ def upload_chunk(request):
         peak_amplitude = request.headers.get('X-Peak-Amplitude')
         speech_percentage = request.headers.get('X-Speech-Percentage')
 
+        # Optional speaker count (only on final chunk from updated iOS apps)
+        speaker_count_header = request.headers.get('X-Speaker-Count')
+        speaker_count = None
+        if speaker_count_header:
+            try:
+                speaker_count = int(speaker_count_header)
+                if speaker_count < 1 or speaker_count > 6:
+                    speaker_count = None  # Invalid range, ignore
+            except (ValueError, TypeError):
+                speaker_count = None  # Invalid value, ignore
+
     except (ValueError, TypeError) as e:
         return JsonResponse({'error': f'Invalid headers: {e}'}, status=400)
 
@@ -1255,6 +1266,11 @@ def upload_chunk(request):
         conversation.is_final_uploaded = True
         conversation.audio_uploaded_at = timezone.now()
         conversation.ended_at = timezone.now()
+
+        # Save speaker count if provided (from updated iOS apps)
+        if speaker_count is not None:
+            conversation.speakers_expected = speaker_count
+            print(f"   Speaker count from iOS: {speaker_count}")
 
         if not conversation.title:
             conversation.title = f"Conversation - {conversation.get_duration_display()}"

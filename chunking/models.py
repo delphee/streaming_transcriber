@@ -54,6 +54,9 @@ class ChunkedConversation(models.Model):
     is_analyzed = models.BooleanField(default=False)  # Final transcription complete
     is_transcribing = models.BooleanField(default=False)
 
+    # === TRANSCRIPTION SETTINGS ===
+    speakers_expected = models.IntegerField(default=2)  # Expected number of speakers (1-6)
+
     # === TRANSCRIPTION RESULTS ===
     full_transcript = models.TextField(blank=True)  # Complete conversation transcript
     preliminary_transcript = models.TextField(blank=True)  # Stitched chunk transcripts
