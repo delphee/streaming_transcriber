@@ -14,8 +14,11 @@ from django.utils import timezone
 from openai import OpenAI
 import json
 import re
+import os
+import tempfile
+import subprocess
 from datetime import timedelta
-from .s3_handler_hybrid import generate_presigned_download_url
+from .s3_handler_hybrid import generate_presigned_download_url, get_s3_client, sanitize_username_for_s3
 from functools import lru_cache
 
 # Initialize clients
@@ -40,6 +43,127 @@ def get_openai_client():
         return None
     print("✅ OpenAI client initialized (cached)")
     return OpenAI(api_key=api_key)
+
+
+# === AUDIO PREPROCESSING ===
+
+def preprocess_audio_for_transcription(conversation):
+    """
+    Download audio from S3, apply FFmpeg filters for speech clarity, and upload processed file.
+
+    FFmpeg filter chain:
+    - High-pass at 80Hz (removes rumble, HVAC, traffic)
+    - Low-pass at 8000Hz (removes hiss, focus on speech frequencies)
+    - Dynamic normalization (loudnorm) for consistent levels
+
+    Uses streaming/temp files to minimize memory usage on Heroku.
+
+    Args:
+        conversation: ChunkedConversation instance with final_audio_url
+
+    Returns:
+        str: Presigned URL of processed audio, or None on failure
+    """
+    if not conversation.final_audio_url:
+        print("❌ No final audio URL for preprocessing")
+        return None
+
+    print(f"🎛️ Starting audio preprocessing for conversation {conversation.id}")
+
+    s3_client = get_s3_client()
+
+    # Extract S3 key from URL
+    original_key = conversation.final_audio_url.split('.amazonaws.com/')[-1]
+
+    # Create temp files for streaming
+    input_fd, input_path = tempfile.mkstemp(suffix='.flac')
+    output_fd, output_path = tempfile.mkstemp(suffix='.flac')
+
+    try:
+        # Close file descriptors - we'll use paths directly
+        os.close(input_fd)
+        os.close(output_fd)
+
+        # 1. Stream download from S3 to temp file
+        print(f"   📥 Downloading from S3: {original_key}")
+        s3_client.download_file(
+            settings.AWS_STORAGE_BUCKET_NAME,
+            original_key,
+            input_path
+        )
+
+        input_size = os.path.getsize(input_path)
+        print(f"   ✅ Downloaded: {input_size:,} bytes")
+
+        # 2. Run FFmpeg with filter chain
+        print(f"   🎛️ Applying FFmpeg filters...")
+
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-y',  # Overwrite output
+            '-i', input_path,
+            '-af', 'highpass=f=80,lowpass=f=8000,loudnorm=I=-16:TP=-1.5:LRA=11',
+            '-ar', '16000',  # 16kHz sample rate (optimal for speech recognition)
+            '-ac', '1',  # Mono (reduces file size, speech doesn't need stereo)
+            output_path
+        ]
+
+        result = subprocess.run(
+            ffmpeg_cmd,
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+
+        if result.returncode != 0:
+            print(f"   ❌ FFmpeg failed: {result.stderr[:500]}")
+            return None
+
+        output_size = os.path.getsize(output_path)
+        print(f"   ✅ FFmpeg complete: {output_size:,} bytes ({output_size/input_size*100:.1f}% of original)")
+
+        # 3. Upload processed file to S3
+        safe_username = sanitize_username_for_s3(conversation.recorded_by.username)
+        processed_key = f"processed/{safe_username}/{conversation.id}/processed.flac"
+
+        print(f"   📤 Uploading processed audio: {processed_key}")
+
+        s3_client.upload_file(
+            output_path,
+            settings.AWS_STORAGE_BUCKET_NAME,
+            processed_key,
+            ExtraArgs={'ContentType': 'audio/flac'}
+        )
+
+        processed_url = f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{processed_key}"
+        print(f"   ✅ Uploaded processed audio")
+
+        # 4. Generate presigned URL for AssemblyAI
+        presigned_url = generate_presigned_download_url(processed_url, expiration=3600)
+
+        if presigned_url:
+            print(f"   ✅ Preprocessing complete")
+            return presigned_url
+        else:
+            print(f"   ❌ Failed to generate presigned URL")
+            return None
+
+    except subprocess.TimeoutExpired:
+        print(f"   ❌ FFmpeg timed out after 5 minutes")
+        return None
+    except Exception as e:
+        print(f"   ❌ Preprocessing error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+    finally:
+        # Clean up temp files
+        for path in [input_path, output_path]:
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except:
+                pass
 
 
 # === PRELIMINARY TRANSCRIPTION (Fast, for monitoring) ===
@@ -199,8 +323,15 @@ def transcribe_final_audio(conversation_id):
         print(f"ðŸŽ¤ Starting FINAL transcription for conversation {conversation_id}")
         print(f"   Audio URL: {conversation.final_audio_url}")
 
-        # Generate presigned URL for AssemblyAI (1 hour expiration)
-        presigned_url = generate_presigned_download_url(conversation.final_audio_url, expiration=3600)
+        # Preprocess audio for better transcription quality
+        presigned_url = preprocess_audio_for_transcription(conversation)
+
+        if presigned_url:
+            print(f"   ✅ Using preprocessed audio for transcription")
+        else:
+            # Fall back to original audio if preprocessing fails
+            print(f"   ⚠️ Preprocessing failed, using original audio")
+            presigned_url = generate_presigned_download_url(conversation.final_audio_url, expiration=3600)
 
         if not presigned_url:
             error_msg = "Failed to generate presigned URL for final audio"
@@ -209,7 +340,7 @@ def transcribe_final_audio(conversation_id):
             conversation.save()
             return False
 
-        print(f" Using presigned URL for final transcription")
+        print(f"   🔗 Presigned URL ready for transcription")
 
         # Use speaker count from iOS if provided, otherwise default to 2
         speakers_expected = conversation.speakers_expected if conversation.speakers_expected else 2
