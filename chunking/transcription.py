@@ -553,7 +553,7 @@ Respond with ONLY a valid JSON object (no markdown, no explanation):
 
         try:
             response = openai_client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-5.2",
                 messages=[
                     {
                         "role": "system",
@@ -812,7 +812,7 @@ FORMATTING GUIDELINES:
 - The JSON will be converted to human-readable format, so prioritize clarity over structure"""
 
         response = openai_client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-5.2",
             messages=[
                 {
                     "role": "system",
