@@ -565,7 +565,7 @@ Respond with ONLY a valid JSON object (no markdown, no explanation):
                     }
                 ],
                 temperature=0.2,  # Lower temperature for more consistent results
-                max_tokens=300
+                max_completion_tokens=300
             )
 
             result_text = response.choices[0].message.content.strip()
@@ -824,7 +824,7 @@ FORMATTING GUIDELINES:
                 }
             ],
             temperature=0.3,
-            max_tokens=1000
+            max_completion_tokens=1000
         )
 
         result_text = response.choices[0].message.content.strip()
