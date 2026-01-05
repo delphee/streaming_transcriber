@@ -573,6 +573,8 @@ def retry_analysis(request, conversation_id):
     Retry AI analysis if it failed or needs to be regenerated.
     Admin or owner only.
 
+    Supports both session auth (web UI) and token auth (iOS app).
+
     Returns: {
         success: bool,
         message: str,
@@ -582,10 +584,14 @@ def retry_analysis(request, conversation_id):
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
 
-    # Authenticate
-    user, error = authenticate_request(request)
-    if error:
-        return error
+    # Authenticate - try session auth first (web), then token auth (iOS)
+    user = None
+    if request.user.is_authenticated:
+        user = request.user
+    else:
+        user, error = authenticate_request(request)
+        if error:
+            return error
 
     # Get conversation (admins can see all)
     try:
