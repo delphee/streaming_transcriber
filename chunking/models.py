@@ -58,9 +58,23 @@ class ChunkedConversation(models.Model):
     speakers_expected = models.IntegerField(default=2)  # Expected number of speakers (1-6)
 
     # === TRANSCRIPTION RESULTS ===
-    full_transcript = models.TextField(blank=True)  # Complete conversation transcript
+    full_transcript = models.TextField(blank=True)  # Complete conversation transcript (AssemblyAI)
     preliminary_transcript = models.TextField(blank=True)  # Stitched chunk transcripts
     formatted_transcript = models.TextField(blank=True)  # Formatted with speaker names and timestamps
+
+    # === WHISPER TRANSCRIPTION (Parallel comparison) ===
+    whisper_transcript = models.TextField(blank=True)  # OpenAI Whisper transcript
+    whisper_formatted_transcript = models.TextField(blank=True)  # Whisper with speaker labels
+    transcription_service_preference = models.CharField(
+        max_length=20,
+        choices=[
+            ('assemblyai', 'AssemblyAI'),
+            ('whisper', 'OpenAI Whisper'),
+            ('both', 'Both (Compare)'),
+        ],
+        default='both',
+        help_text="Which transcription to use for analysis"
+    )
 
     # === AI ANALYSIS RESULTS ===
     summary = models.TextField(blank=True)  # Conversation summary

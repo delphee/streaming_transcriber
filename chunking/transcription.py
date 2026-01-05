@@ -102,7 +102,7 @@ def preprocess_audio_for_transcription(conversation):
             'ffmpeg',
             '-y',  # Overwrite output
             '-i', input_path,
-            '-af', 'highpass=f=80,lowpass=f=8000,loudnorm=I=-16:TP=-1.5:LRA=11',
+            '-af', 'highpass=f=80,lowpass=f=12000,loudnorm=I=-16:TP=-1.5:LRA=11',
             '-ar', '16000',  # 16kHz sample rate (optimal for speech recognition)
             '-ac', '1',  # Mono (reduces file size, speech doesn't need stereo)
             output_path
@@ -164,6 +164,182 @@ def preprocess_audio_for_transcription(conversation):
                     os.remove(path)
             except:
                 pass
+
+
+# === WHISPER TRANSCRIPTION ===
+
+def transcribe_with_whisper(conversation, audio_path):
+    """
+    Transcribe audio using OpenAI Whisper API.
+    Whisper provides excellent quality but no native speaker diarization.
+
+    Args:
+        conversation: ChunkedConversation instance
+        audio_path: Local path to audio file
+
+    Returns:
+        str: Transcript text, or None on failure
+    """
+    openai_client = get_openai_client()
+    if not openai_client:
+        print(f"⚠️ OpenAI client not configured, skipping Whisper transcription")
+        return None
+
+    print(f"🎤 Starting Whisper transcription for conversation {conversation.id}")
+
+    try:
+        with open(audio_path, 'rb') as audio_file:
+            # Use Whisper API with verbose output for timestamps
+            response = openai_client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="verbose_json",
+                timestamp_granularities=["segment"]
+            )
+
+        # Extract full transcript
+        transcript_text = response.text
+
+        print(f"✅ Whisper transcription complete: {len(transcript_text)} chars")
+
+        # Build formatted transcript with timestamps
+        formatted_lines = []
+        if hasattr(response, 'segments') and response.segments:
+            for segment in response.segments:
+                start_seconds = int(segment.get('start', 0))
+                minutes = start_seconds // 60
+                seconds = start_seconds % 60
+                timestamp = f"[{minutes}:{seconds:02d}]"
+                text = segment.get('text', '').strip()
+                if text:
+                    formatted_lines.append(f"{timestamp} {text}")
+
+            conversation.whisper_formatted_transcript = "\n\n".join(formatted_lines)
+        else:
+            # No segments, just use raw transcript
+            conversation.whisper_formatted_transcript = transcript_text
+
+        conversation.whisper_transcript = transcript_text
+        conversation.save()
+
+        print(f"✅ Whisper formatted transcript: {len(formatted_lines)} segments")
+        return transcript_text
+
+    except Exception as e:
+        print(f"❌ Whisper transcription error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def download_audio_for_whisper(conversation):
+    """
+    Download audio from S3 to a temp file for Whisper API.
+    Whisper requires a file upload, not a URL.
+
+    Args:
+        conversation: ChunkedConversation instance
+
+    Returns:
+        str: Path to temp file, or None on failure
+    """
+    if not conversation.final_audio_url:
+        print("❌ No final audio URL for Whisper download")
+        return None
+
+    s3_client = get_s3_client()
+
+    # Extract S3 key from URL
+    original_key = conversation.final_audio_url.split('.amazonaws.com/')[-1]
+
+    # Create temp file
+    temp_fd, temp_path = tempfile.mkstemp(suffix='.flac')
+    os.close(temp_fd)
+
+    try:
+        print(f"📥 Downloading audio for Whisper: {original_key}")
+        s3_client.download_file(
+            settings.AWS_STORAGE_BUCKET_NAME,
+            original_key,
+            temp_path
+        )
+
+        file_size = os.path.getsize(temp_path)
+        print(f"✅ Downloaded: {file_size:,} bytes")
+
+        # Whisper has 25MB limit - check file size
+        if file_size > 25 * 1024 * 1024:
+            print(f"⚠️ File too large for Whisper ({file_size:,} bytes > 25MB), compressing...")
+            compressed_path = compress_audio_for_whisper(temp_path)
+            if compressed_path:
+                os.remove(temp_path)
+                return compressed_path
+            else:
+                print(f"❌ Compression failed, file too large for Whisper")
+                os.remove(temp_path)
+                return None
+
+        return temp_path
+
+    except Exception as e:
+        print(f"❌ Download error: {e}")
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return None
+
+
+def compress_audio_for_whisper(input_path):
+    """
+    Compress audio to fit within Whisper's 25MB limit.
+    Uses lower bitrate MP3 format.
+
+    Args:
+        input_path: Path to input audio file
+
+    Returns:
+        str: Path to compressed file, or None on failure
+    """
+    output_fd, output_path = tempfile.mkstemp(suffix='.mp3')
+    os.close(output_fd)
+
+    try:
+        ffmpeg_cmd = [
+            'ffmpeg',
+            '-y',
+            '-i', input_path,
+            '-ar', '16000',
+            '-ac', '1',
+            '-b:a', '32k',  # Low bitrate to fit in 25MB
+            output_path
+        ]
+
+        result = subprocess.run(
+            ffmpeg_cmd,
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+
+        if result.returncode != 0:
+            print(f"❌ FFmpeg compression failed: {result.stderr[:200]}")
+            os.remove(output_path)
+            return None
+
+        output_size = os.path.getsize(output_path)
+        print(f"✅ Compressed to {output_size:,} bytes")
+
+        if output_size > 25 * 1024 * 1024:
+            print(f"❌ Still too large after compression")
+            os.remove(output_path)
+            return None
+
+        return output_path
+
+    except Exception as e:
+        print(f"❌ Compression error: {e}")
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        return None
 
 
 # === PRELIMINARY TRANSCRIPTION (Fast, for monitoring) ===
@@ -391,6 +567,22 @@ def transcribe_final_audio(conversation_id):
         # Generate formatted transcript with speaker names
         if transcript.utterances:
             generate_formatted_transcript(conversation)
+
+        # === WHISPER TRANSCRIPTION (for comparison) ===
+        print(f"   🎤 Now running Whisper transcription for comparison...")
+        audio_path = download_audio_for_whisper(conversation)
+        if audio_path:
+            try:
+                whisper_result = transcribe_with_whisper(conversation, audio_path)
+                if whisper_result:
+                    print(f"   ✅ Whisper transcript stored: {len(whisper_result)} chars")
+                else:
+                    print(f"   ⚠️ Whisper transcription returned no result")
+            finally:
+                if os.path.exists(audio_path):
+                    os.remove(audio_path)
+        else:
+            print(f"   ⚠️ Could not download audio for Whisper")
 
         # Generate conversation analysis
         openai_client = get_openai_client()
