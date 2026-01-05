@@ -824,7 +824,7 @@ FORMATTING GUIDELINES:
                 }
             ],
             temperature=0.3,
-            max_completion_tokens=1000
+            max_completion_tokens=8000
         )
 
         result_text = response.choices[0].message.content.strip()
