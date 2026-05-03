@@ -36,13 +36,17 @@ def get_openai_client():
     """
     Lazily initialize and cache the OpenAI client.
     Ensures it's created once per process and reused safely.
+
+    max_retries=3 is the SDK's built-in retry-with-backoff for transient
+    failures (network errors, 5xx responses) — without it, a single blip
+    during transcription stamps transcription_error and ends the run.
     """
     api_key = getattr(settings, "OPENAI_API_KEY", None)
     if not api_key:
         print("⚠️ OpenAI API key not found - AI analysis will be skipped")
         return None
     print("✅ OpenAI client initialized (cached)")
-    return OpenAI(api_key=api_key)
+    return OpenAI(api_key=api_key, max_retries=3)
 
 
 # === AUDIO PREPROCESSING ===
@@ -162,8 +166,8 @@ def preprocess_audio_for_transcription(conversation):
             try:
                 if os.path.exists(path):
                     os.remove(path)
-            except:
-                pass
+            except OSError as cleanup_err:
+                print(f"   ⚠️ Failed to remove temp file {path}: {cleanup_err}")
 
 
 # === WHISPER TRANSCRIPTION ===
@@ -191,7 +195,7 @@ def transcribe_with_whisper(conversation, audio_path):
         with open(audio_path, 'rb') as audio_file:
             # Use Whisper API with verbose output for timestamps
             response = openai_client.audio.transcriptions.create(
-                model="whisper-1",
+                model=settings.OPENAI_TRANSCRIPTION_MODEL,
                 file=audio_file,
                 response_format="verbose_json",
                 timestamp_granularities=["segment"]
@@ -202,15 +206,17 @@ def transcribe_with_whisper(conversation, audio_path):
 
         print(f"✅ Whisper transcription complete: {len(transcript_text)} chars")
 
-        # Build formatted transcript with timestamps
+        # Build formatted transcript with timestamps.
+        # Segments are Pydantic TranscriptionSegment objects in openai>=1.x —
+        # use attribute access, not dict-style .get().
         formatted_lines = []
         if hasattr(response, 'segments') and response.segments:
             for segment in response.segments:
-                start_seconds = int(segment.get('start', 0))
+                start_seconds = int(getattr(segment, 'start', 0) or 0)
                 minutes = start_seconds // 60
                 seconds = start_seconds % 60
                 timestamp = f"[{minutes}:{seconds:02d}]"
-                text = segment.get('text', '').strip()
+                text = (getattr(segment, 'text', '') or '').strip()
                 if text:
                     formatted_lines.append(f"{timestamp} {text}")
 
@@ -472,6 +478,36 @@ def stitch_preliminary_transcript(conversation):
 
 # === FINAL TRANSCRIPTION (High Quality + Speaker Diarization) ===
 
+def run_whisper_comparison(conversation):
+    """
+    Run OpenAI Whisper as a side-by-side comparison transcript, but only when
+    the conversation's transcription_service_preference asks for it.
+
+    Analysis (analyze_conversation) reads conversation.full_transcript, which
+    is the AssemblyAI output. The Whisper transcript is purely for human
+    side-by-side review in the UI, so it's opt-in to avoid paying ~$0.36/hr
+    on every conversation.
+    """
+    if conversation.transcription_service_preference != 'both':
+        print(f"   ⏭️  Skipping Whisper (preference: {conversation.transcription_service_preference})")
+        return
+
+    print(f"   🎤 Running Whisper transcription for comparison...")
+    audio_path = download_audio_for_whisper(conversation)
+    if not audio_path:
+        print(f"   ⚠️ Could not download audio for Whisper")
+        return
+    try:
+        whisper_result = transcribe_with_whisper(conversation, audio_path)
+        if whisper_result:
+            print(f"   ✅ Whisper transcript stored: {len(whisper_result)} chars")
+        else:
+            print(f"   ⚠️ Whisper transcription returned no result")
+    finally:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+
+
 def transcribe_final_audio(conversation_id):
     """
     Transcribe the complete audio file with high quality and speaker diarization.
@@ -568,21 +604,8 @@ def transcribe_final_audio(conversation_id):
         if transcript.utterances:
             generate_formatted_transcript(conversation)
 
-        # === WHISPER TRANSCRIPTION (for comparison) ===
-        print(f"   🎤 Now running Whisper transcription for comparison...")
-        audio_path = download_audio_for_whisper(conversation)
-        if audio_path:
-            try:
-                whisper_result = transcribe_with_whisper(conversation, audio_path)
-                if whisper_result:
-                    print(f"   ✅ Whisper transcript stored: {len(whisper_result)} chars")
-                else:
-                    print(f"   ⚠️ Whisper transcription returned no result")
-            finally:
-                if os.path.exists(audio_path):
-                    os.remove(audio_path)
-        else:
-            print(f"   ⚠️ Could not download audio for Whisper")
+        # === WHISPER TRANSCRIPTION (opt-in comparison) ===
+        run_whisper_comparison(conversation)
 
         # Generate conversation analysis
         openai_client = get_openai_client()
@@ -606,8 +629,10 @@ def transcribe_final_audio(conversation_id):
             conversation = ChunkedConversation.objects.get(id=conversation_id)
             conversation.transcription_error = error_msg
             conversation.save()
-        except:
-            pass
+        except Exception as save_err:
+            # Recovery itself failed — log so the original error doesn't get
+            # double-buried. We still return False below.
+            print(f"   ⚠️ Could not record transcription_error on conversation {conversation_id}: {save_err}")
 
         return False
 
@@ -659,8 +684,11 @@ def create_speakers_and_segments(conversation, transcript):
 
 def identify_speakers_with_ai(conversation):
     """
-    Use OpenAI GPT-4 to identify speakers by analyzing their dialogue.
-    Enhanced version with better prompting and error handling.
+    Use AI to identify all speakers in a single batched call.
+
+    Cross-speaker reasoning ("Thanks, Sam" said by Speaker B implies Speaker A
+    is Sam) is what makes one batched call more accurate than the previous
+    per-speaker approach — and it costs ~1/N the API calls.
 
     Args:
         conversation: ChunkedConversation instance
@@ -669,134 +697,148 @@ def identify_speakers_with_ai(conversation):
 
     openai_client = get_openai_client()
     if not openai_client:
-        print(f"âš ï¸ OpenAI client not configured, skipping speaker identification")
+        print("⚠️ OpenAI client not configured, skipping speaker identification")
         return
 
-    print(f"ðŸ¤– Using AI to identify speakers...")
-
-    speakers = Speaker.objects.filter(conversation=conversation)
-
-    if not speakers.exists():
-        print(f"   No speakers to identify")
+    speakers = list(Speaker.objects.filter(conversation=conversation))
+    if not speakers:
+        print("   No speakers to identify")
         return
 
-    # Get recording user's name
-    recording_user_name = conversation.recorded_by.get_full_name() or conversation.recorded_by.username
+    print(f"🤖 Identifying {len(speakers)} speaker(s) in one batched call...")
 
-    # Get more context from the conversation
-    all_segments = TranscriptSegment.objects.filter(
-        conversation=conversation
-    ).order_by('start_time')[:50]  # First 50 segments for full context
+    recording_user_name = (
+        conversation.recorded_by.get_full_name()
+        or conversation.recorded_by.username
+    )
 
-    for speaker in speakers:
-        # Get this speaker's dialogue
-        segments = TranscriptSegment.objects.filter(
-            conversation=conversation,
-            speaker=speaker
-        ).order_by('start_time')[:15]  # More segments for better analysis
+    # Build the conversation in chronological order with anonymous speaker
+    # labels. Cross-speaker reasoning lives or dies on having all utterances
+    # in their original sequence.
+    segments = (
+        TranscriptSegment.objects
+        .filter(conversation=conversation)
+        .select_related("speaker")
+        .order_by("start_time")
+    )
+    dialogue_lines = []
+    for seg in segments:
+        label = seg.speaker.speaker_label if seg.speaker else "Unknown"
+        dialogue_lines.append(f"{label}: {seg.text}")
+    dialogue_text = "\n".join(dialogue_lines)
 
-        if not segments.exists():
-            continue
+    speaker_labels_quoted = ", ".join(f'"{s.speaker_label}"' for s in speakers)
 
-        speaker_dialogue = "\n".join([f"- {seg.text}" for seg in segments])
-
-        # Get OTHER speakers' dialogue (for context)
-        other_segments = TranscriptSegment.objects.filter(
-            conversation=conversation
-        ).exclude(
-            speaker=speaker
-        ).order_by('start_time')[:15]
-
-        other_dialogue = "\n".join([f"- {seg.text}" for seg in other_segments])
-
-        # Build enhanced prompt
-        prompt = f"""You are an expert at analyzing conversations to identify speakers based on their dialogue and context clues.
+    prompt = f"""You are an expert at analyzing conversations to identify speakers based on dialogue and context clues.
 
 RECORDING INFORMATION:
 - This recording was made by: {recording_user_name}
-- We need to identify who "{speaker.speaker_label}" is in this conversation
+- The conversation contains these speakers (anonymous labels): {speaker_labels_quoted}
 
-{speaker.speaker_label}'S DIALOGUE:
-{speaker_dialogue}
-
-OTHER SPEAKER(S)' DIALOGUE (for context):
-{other_dialogue}
+CONVERSATION (chronological, with anonymous speaker labels):
+{dialogue_text}
 
 IDENTIFICATION CRITERIA:
-Look for these clues to identify {speaker.speaker_label}:
+For each speaker, look for these clues:
+1. Direct self-introduction: "Hi, I'm John" / "This is Sarah calling"
+2. Name mentioned by others: "Thanks, Michael" / "Susan, can you help?"
+3. Role indicators: "As your sales rep..." / "I'm calling from..."
+4. Context clues: business names, relationship cues
 
-1. **Direct self-introduction**: "Hi, I'm John" or "This is Sarah calling"
-2. **Name mentioned by others**: "Thanks, Michael" or "Susan, can you help?"
-3. **Role indicators**: "As your sales rep..." or "I'm calling from..."
-4. **Context clues**: Business name mentions, relationship indicators
+CROSS-SPEAKER REASONING:
+- If Speaker B says "Thanks, Sam" and "Sam" doesn't appear in Speaker B's own lines,
+  Sam is most likely Speaker A.
+- If a speaker is clearly the recording user ({recording_user_name}), mark them with
+  "is_recording_user": true.
 
-SPECIAL CASES:
-- If {speaker.speaker_label} is clearly the person making the recording (uses first-person about recording, says their own name), indicate they are the recording user
-- If you cannot confidently identify the name, respond with "Unknown"
-- Be conservative - only provide a name if you have strong evidence
+CONFIDENCE GUIDELINES:
+- "high": direct introduction or unambiguous name reference
+- "medium": strong contextual clues
+- "low": weak or ambiguous evidence — set identified_name to "Unknown"
 
 RESPONSE FORMAT:
-Respond with ONLY a valid JSON object (no markdown, no explanation):
+Respond with ONLY a valid JSON object (no markdown, no explanation).
+Include one entry per speaker, using the exact speaker_label strings provided above.
+
 {{
-    "identified_name": "First Last" or "Unknown",
-    "confidence": "high" or "medium" or "low",
-    "reasoning": "Brief explanation of how you identified this person"
+  "speakers": [
+    {{
+      "speaker_label": "Speaker A",
+      "identified_name": "First Last" or "Unknown",
+      "is_recording_user": true or false,
+      "confidence": "high" or "medium" or "low",
+      "reasoning": "Brief explanation"
+    }}
+  ]
 }}"""
 
-        try:
-            response = openai_client.chat.completions.create(
-                model="gpt-5.2",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an expert at analyzing conversations to identify speakers. Always respond with valid JSON only, no markdown formatting."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                temperature=0.2,  # Lower temperature for more consistent results
-                max_completion_tokens=300
-            )
+    result_text = ""
+    try:
+        response = openai_client.chat.completions.create(
+            model=settings.OPENAI_SPEAKER_ID_MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert at analyzing conversations to identify speakers. Always respond with valid JSON only, no markdown formatting."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            # GPT-5.x reasoning models reject non-default temperature; use
+            # reasoning_effort to control output quality/cost instead.
+            reasoning_effort=settings.OPENAI_SPEAKER_ID_REASONING_EFFORT,
+            max_completion_tokens=1500
+        )
 
-            result_text = response.choices[0].message.content.strip()
+        result_text = response.choices[0].message.content.strip()
+        result_text = re.sub(r"```json\s*", "", result_text)
+        result_text = re.sub(r"```\s*$", "", result_text)
+        result_text = result_text.strip()
 
-            # Remove markdown code blocks if present
-            result_text = re.sub(r'```json\s*', '', result_text)
-            result_text = re.sub(r'```\s*$', '', result_text)
-            result_text = result_text.strip()
+        result = json.loads(result_text)
+        identifications = result.get("speakers", [])
 
-            result = json.loads(result_text)
+        speakers_by_label = {s.speaker_label: s for s in speakers}
 
-            identified_name = result.get('identified_name', 'Unknown')
-            confidence = result.get('confidence', 'low')
-            reasoning = result.get('reasoning', '')
+        for ident in identifications:
+            label = ident.get("speaker_label")
+            speaker = speakers_by_label.get(label)
+            if not speaker:
+                print(f"   ⚠️ AI returned unknown speaker_label: {label!r}")
+                continue
 
-            print(f"   {speaker.speaker_label}: {identified_name} (confidence: {confidence})")
+            identified_name = ident.get("identified_name", "Unknown")
+            confidence = ident.get("confidence", "low")
+            reasoning = ident.get("reasoning", "")
+            is_recording_user_flag = bool(ident.get("is_recording_user", False))
+
+            print(f"   {label}: {identified_name} (confidence: {confidence})")
             print(f"      Reasoning: {reasoning}")
 
-            # Update speaker if we have a confident identification
             if identified_name and identified_name != "Unknown":
                 speaker.identified_name = identified_name
 
-                # Check if this is the recording user (case-insensitive comparison)
-                if (recording_user_name.lower() in identified_name.lower() or
-                        identified_name.lower() in recording_user_name.lower() or
-                        "recording user" in reasoning.lower()):
+                # Trust the AI flag, but fall back to substring matching the
+                # recording user's name as a safety net.
+                if is_recording_user_flag or (
+                    recording_user_name.lower() in identified_name.lower()
+                    or identified_name.lower() in recording_user_name.lower()
+                ):
                     speaker.is_recording_user = True
-                    print(f"   ðŸ‘¤ Marked {speaker.speaker_label} as recording user")
+                    print(f"   👤 Marked {label} as recording user")
 
                 speaker.save()
-                print(f"   âœ… Updated {speaker.speaker_label} -> {identified_name}")
+                print(f"   ✅ Updated {label} -> {identified_name}")
 
-        except json.JSONDecodeError as e:
-            print(f"   âŒ Failed to parse AI response for {speaker.speaker_label}: {e}")
-            print(f"      Response was: {result_text[:200]}")
-        except Exception as e:
-            print(f"   âŒ Error identifying {speaker.speaker_label}: {e}")
-            import traceback
-            traceback.print_exc()
+    except json.JSONDecodeError as e:
+        print(f"   ❌ Failed to parse AI response: {e}")
+        print(f"      Response was: {result_text[:300]}")
+    except Exception as e:
+        print(f"   ❌ Error in batched speaker identification: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def generate_formatted_transcript(conversation):
@@ -957,8 +999,11 @@ def analyze_conversation(conversation):
     print(f"🔍 Analyzing conversation with AI...")
 
     try:
-        # Get the full transcript
-        transcript = conversation.full_transcript
+        # Prefer the formatted transcript (with speaker labels and
+        # timestamps) so coaching feedback can attribute lines to the right
+        # speaker. Fall back to the unlabeled AssemblyAI text only if
+        # diarization didn't run.
+        transcript = conversation.formatted_transcript or conversation.full_transcript
 
         if not transcript:
             print(f"   No transcript available for analysis")
@@ -991,7 +1036,7 @@ def analyze_conversation(conversation):
         prompt = f"""{custom_instructions}
 
 TRANSCRIPT:
-{transcript[:8000]}
+{transcript}
 
 IMPORTANT: Respond with ONLY valid JSON (no markdown, no explanations outside the JSON).
 Your response must be a single JSON object that can be parsed.
@@ -1004,7 +1049,7 @@ FORMATTING GUIDELINES:
 - The JSON will be converted to human-readable format, so prioritize clarity over structure"""
 
         response = openai_client.chat.completions.create(
-            model="gpt-5.2",
+            model=settings.OPENAI_ANALYSIS_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -1015,7 +1060,9 @@ FORMATTING GUIDELINES:
                     "content": prompt
                 }
             ],
-            temperature=0.3,
+            # GPT-5.x reasoning models reject non-default temperature; use
+            # reasoning_effort to control output quality/cost instead.
+            reasoning_effort=settings.OPENAI_ANALYSIS_REASONING_EFFORT,
             max_completion_tokens=8000
         )
 
@@ -1209,7 +1256,7 @@ Return ONLY the optimized prompt, no explanations."""
     try:
         client = get_openai_client()
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=settings.OPENAI_PROMPT_OPTIMIZER_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Convert this into an optimized analysis prompt:\n\n{plain_text}"}

@@ -101,6 +101,24 @@ CONVERSATION_RETENTION_DAYS = 30  # Delete everything after 30 days
 # Transcription batching (transcribe every N chunks)
 PRELIMINARY_TRANSCRIPTION_BATCH_SIZE = 4  # 4 chunks × 30s = 2 minutes
 
+# === OPENAI MODEL CHOICES ===
+# Centralized so we can flip a model in one place (e.g. when migrating
+# to a new GPT version) without grepping through call sites. Each one
+# can be overridden via env var on Heroku without a code change.
+OPENAI_ANALYSIS_MODEL = os.environ.get('OPENAI_ANALYSIS_MODEL', 'gpt-5.5')
+OPENAI_SPEAKER_ID_MODEL = os.environ.get('OPENAI_SPEAKER_ID_MODEL', 'gpt-5.5')
+OPENAI_PROMPT_OPTIMIZER_MODEL = os.environ.get('OPENAI_PROMPT_OPTIMIZER_MODEL', 'gpt-4o')
+OPENAI_VOICE_ASSISTANT_MODEL = os.environ.get('OPENAI_VOICE_ASSISTANT_MODEL', 'gpt-4o-mini')
+OPENAI_TTS_MODEL = os.environ.get('OPENAI_TTS_MODEL', 'gpt-4o-mini-tts')
+OPENAI_TRANSCRIPTION_MODEL = os.environ.get('OPENAI_TRANSCRIPTION_MODEL', 'whisper-1')
+
+# GPT-5.5 reasoning effort. Levels (cheapest → most thorough):
+#   non-reasoning, low, medium, high, xhigh
+# Analysis is the flagship feature → 'medium' (good quality at reasonable cost).
+# Speaker ID is a simple identification task → 'low' (cheap, fast).
+OPENAI_ANALYSIS_REASONING_EFFORT = os.environ.get('OPENAI_ANALYSIS_REASONING_EFFORT', 'medium')
+OPENAI_SPEAKER_ID_REASONING_EFFORT = os.environ.get('OPENAI_SPEAKER_ID_REASONING_EFFORT', 'low')
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 

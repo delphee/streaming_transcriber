@@ -204,95 +204,6 @@ def confirm_notification(request):
 
 
 @csrf_exempt
-def ai_conversation_queryORIGINAL(request):
-    """
-    iOS endpoint for AI-powered job data queries
-    POST body: {
-        "job_data": "string",  # Optional, reserved for future use
-        "query": "What time is the appointment?",
-        "conversation_history": [...]  # Optional
-    }
-    """
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
-
-    # Get token from header
-    auth_header = request.headers.get('Authorization', '')
-    if not auth_header.startswith('Bearer '):
-        return JsonResponse({'success': False, 'error': 'Invalid authorization header'}, status=401)
-
-    token = auth_header.split(' ')[1]
-    user = get_user_from_token(token)
-
-    if not user:
-        return JsonResponse({'success': False, 'error': 'Invalid token'}, status=401)
-
-    # Parse request body
-    try:
-        body = json.loads(request.body.decode('utf-8'))
-        query = body.get('query')
-        appointment_id = body.get('appointment_id', '')  # Reserved for future use
-        conversation_history = body.get('conversation_history', [])
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return JsonResponse({'success': False, 'error': 'Invalid JSON body'}, status=400)
-
-    if not query:
-        return JsonResponse({'success': False, 'error': 'Missing query'}, status=400)
-
-    # Get user's current active job
-    try:
-        user_profile = UserProfile.objects.get(user=user)
-        tech_id = user_profile.st_id
-
-        # Get the active dispatch job for this tech
-        dispatch_job = DispatchJob.objects.filter(tech_id=tech_id, appointment_id=appointment_id).first()
-
-        if not dispatch_job:
-            return JsonResponse({
-                'success': False,
-                'error': 'No active job found'
-            }, status=404)
-
-        # Check if AI document is ready
-        if not dispatch_job.ai_document_built or not dispatch_job.ai_document_s3_key:
-            return JsonResponse({
-                'success': False,
-                'error': 'Job document not ready yet. Please try again in a moment.'
-            }, status=202)  # 202 Accepted - processing
-
-        # Fetch document from S3
-        job_document = fetch_document_from_s3(dispatch_job.ai_document_s3_key)
-
-        if not job_document:
-            return JsonResponse({
-                'success': False,
-                'error': 'Unable to retrieve job document'
-            }, status=500)
-
-        # Query AI with the document and conversation history
-        ai_response = query_ai_service(
-            job_document=job_document,
-            user_query=query,
-            conversation_history=conversation_history
-        )
-
-        return JsonResponse({
-            'success': True,
-            'answer': ai_response['answer'],
-            'tokens_used': ai_response['tokens_used'],
-            'timestamp': timezone.now().isoformat()
-        }, status=200)
-
-    except UserProfile.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'User profile not found'}, status=404)
-    except Exception as e:
-        print(f"❌ AI conversation error: {e}")
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({'success': False, 'error': 'Internal server error'}, status=500)
-
-
-@csrf_exempt
 def ai_conversation_query(request):
     """
     iOS endpoint for AI-powered job data queries
@@ -380,7 +291,7 @@ def ai_conversation_query(request):
             }
 
             tts_payload = {
-                "model": "gpt-4o-mini-tts",
+                "model": settings.OPENAI_TTS_MODEL,
                 "input": answer,
                 "voice": voice,
                 "speed": speed,
@@ -478,7 +389,9 @@ def query_ai_service(job_document, user_query, conversation_history=None):
     """
     from openai import OpenAI
 
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    # max_retries=3 enables SDK-level retry-with-backoff for transient errors;
+    # important here because Charisse runs in-vehicle on flaky cellular.
+    client = OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=3)
 
     # Build messages for the conversation
     messages = [
@@ -519,7 +432,7 @@ def query_ai_service(job_document, user_query, conversation_history=None):
 
     # Call OpenAI
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=settings.OPENAI_VOICE_ASSISTANT_MODEL,
         messages=messages,
         temperature=0.7,
         max_tokens=500
@@ -573,7 +486,7 @@ def text_to_speech_view(request):
         }
 
         payload = {
-            "model": "gpt-4o-mini-tts",
+            "model": settings.OPENAI_TTS_MODEL,
             "input": text,
             "voice": voice,
             "speed": speed,

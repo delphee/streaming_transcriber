@@ -72,8 +72,8 @@ class ChunkedConversation(models.Model):
             ('whisper', 'OpenAI Whisper'),
             ('both', 'Both (Compare)'),
         ],
-        default='both',
-        help_text="Which transcription to use for analysis"
+        default='assemblyai',
+        help_text="Which transcription to run. 'both' adds a Whisper comparison pass; analysis still uses the AssemblyAI transcript."
     )
 
     # === AI ANALYSIS RESULTS ===
