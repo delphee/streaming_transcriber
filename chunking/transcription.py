@@ -530,7 +530,7 @@ def transcribe_final_audio(conversation_id):
             format_text=True,
             speakers_expected=speakers_expected
         )
-
+        # test
         transcriber = aai.Transcriber()
 
         print(f"   Submitting to AssemblyAI...")
