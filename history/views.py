@@ -36,6 +36,15 @@ def job_complete(request):
             dispatch_job.status = "Done"
             dispatch_job.save()
     except Exception as e:
+        print(f"Attempting decode for Webhook V2...")
+        try:
+            dispatch_jobs = DispatchJob.objects.filter(job_id=str(data['data']['job']['jobNumber']))
+            if len(dispatch_jobs) > 0:
+                dispatch_job = dispatch_jobs[0]
+                dispatch_job.status = "Done"
+                dispatch_job.save()
+        except Exception as f:
+            print(f"Exception while decoding Webhook V2 data: {f}")
         print(f"Exception while Completing DispatchJob: {e}")
     return HttpResponse(status=200)
 

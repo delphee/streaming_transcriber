@@ -1,0 +1,1730 @@
+================================================================================
+SERVICETITAN PHONE CALL TRANSCRIPTION & ANALYSIS FEATURE
+================================================================================
+
+This document contains all necessary information to recreate the feature where
+a user enters a date and time to find phone calls via the ServiceTitan API,
+which are then transcribed and analyzed by AI.
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. FEATURE OVERVIEW
+2. REQUIRED ENVIRONMENT VARIABLES
+3. DEPENDENCIES (pip packages)
+4. DATABASE MODELS
+5. SERVICETITAN API INTEGRATION
+6. TRANSCRIPTION SERVICE (AssemblyAI)
+7. AI ANALYSIS (OpenAI)
+8. ADMIN VIEWS (Django Backend)
+9. URL ROUTING
+10. FRONTEND TEMPLATE (HTML/JavaScript)
+11. COMPLETE FLOW DIAGRAM
+12. SPEAKER NAME DETECTION
+13. ERROR HANDLING NOTES
+
+================================================================================
+1. FEATURE OVERVIEW
+================================================================================
+
+The feature allows administrators to:
+1. Enter a date and time in a web form
+2. Search ServiceTitan API for phone calls with recordings in that time window
+3. View a list of calls found (with agent name, customer name, duration, etc.)
+4. Import selected calls - downloading the audio recording
+5. Automatically transcribe the call using AssemblyAI (with speaker diarization)
+6. Automatically detect speaker names from the conversation
+7. Analyze the transcription using OpenAI GPT
+8. View results including: transcript, tone, summary, and detailed analysis
+
+The entire process after clicking "Import" runs in background threads,
+with real-time status updates via polling.
+
+================================================================================
+2. REQUIRED ENVIRONMENT VARIABLES
+================================================================================
+
+# ServiceTitan OAuth Credentials
+CLIENT_ID=your_servicetitan_client_id
+CLIENT_SECRET=your_servicetitan_client_secret
+ST_APP_KEY=your_servicetitan_app_key
+
+# Transcription Service
+ASSEMBLYAI_API_KEY=your_assemblyai_api_key
+
+# AI Analysis
+OPENAI_API_KEY=your_openai_api_key
+
+# Django
+SECRET_KEY=your_django_secret_key
+DEBUG=True
+
+================================================================================
+3. DEPENDENCIES (pip packages)
+================================================================================
+
+requests>=2.28.0
+django>=4.0
+openai>=1.0.0
+pydub>=0.25.0
+
+# Note: pydub requires ffmpeg to be installed on the system
+
+================================================================================
+4. DATABASE MODELS
+================================================================================
+
+# models.py
+
+from django.db import models
+import uuid
+from django.utils import timezone
+import secrets
+
+class RecordingSession(models.Model):
+    """Container for audio recording and processing results"""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session_id = models.CharField(max_length=255)
+    session_name = models.CharField(max_length=255, blank=True, null=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    # JSON field to store metadata like:
+    # {
+    #     'source': 'servicetitan',
+    #     'call_id': '12345',
+    #     'original_duration': '00:05:32',
+    #     'duration_seconds': 332,
+    #     'actual_call_datetime': '2024-01-15T10:30:00Z',
+    #     'speaker_name_mapping': {...},
+    #     'enhanced_transcripts': {...}
+    # }
+    session_metadata = models.JSONField(blank=True, null=True)
+
+    PROCESSING_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('error', 'Error'),
+    ]
+    processing_status = models.CharField(
+        max_length=20,
+        choices=PROCESSING_STATUS_CHOICES,
+        default='pending'
+    )
+
+    full_transcript = models.TextField(blank=True, null=True)
+    processing_error = models.TextField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class AudioChunk(models.Model):
+    """Individual audio file within a recording session"""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(
+        RecordingSession,
+        on_delete=models.CASCADE,
+        related_name='chunks'
+    )
+
+    chunk_order = models.PositiveIntegerField()
+    uploaded_at = models.DateTimeField(default=timezone.now)
+
+    audio_file = models.FileField(upload_to='audio_chunks/')
+    file_size = models.PositiveIntegerField(null=True, blank=True)
+    duration_seconds = models.FloatField(null=True, blank=True)
+
+    CHUNK_STATUS_CHOICES = [
+        ('uploaded', 'Uploaded'),
+        ('processing', 'Processing'),
+        ('transcribed', 'Transcribed'),
+        ('error', 'Error'),
+    ]
+    status = models.CharField(max_length=20, choices=CHUNK_STATUS_CHOICES, default='uploaded')
+
+    transcript_text = models.TextField(blank=True, null=True)
+
+    # JSON field for speaker diarization data:
+    # {
+    #     'utterances': [
+    #         {'speaker': 'A', 'text': '...', 'start': 0.0, 'end': 5.2, 'confidence': 0.95},
+    #         ...
+    #     ],
+    #     'speaker_transcript': 'Speaker A: ...\nSpeaker B: ...',
+    #     'speakers_detected': 2,
+    #     'audio_duration': 332.5
+    # }
+    speaker_segments = models.JSONField(blank=True, null=True)
+    processing_error = models.TextField(blank=True, null=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['session', 'chunk_order']
+        unique_together = ['session', 'chunk_order']
+
+
+class ConversationAnalysis(models.Model):
+    """AI analysis results for a recording session"""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.OneToOneField(
+        RecordingSession,
+        on_delete=models.CASCADE,
+        related_name='ai_analysis'
+    )
+
+    summary = models.TextField(blank=True, null=True)
+    tone = models.CharField(max_length=50, blank=True, null=True)
+    importance = models.CharField(max_length=50, blank=True, null=True)
+    full_ai_response = models.TextField(blank=True, null=True)
+
+    # JSON field for dynamic analysis fields:
+    # {
+    #     'analysis_type': 'customer_service',
+    #     'fields': {
+    #         'INTERACTION SUMMARY': {'value': '...', 'order': 1},
+    #         'ISSUE RESOLUTION': {'value': '...', 'order': 2},
+    #         ...
+    #     },
+    #     'metadata': {'parsed_at': '...', 'field_count': 8}
+    # }
+    structured_analysis = models.JSONField(blank=True, null=True)
+
+    ANALYSIS_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('error', 'Error'),
+    ]
+    analysis_status = models.CharField(max_length=20, choices=ANALYSIS_STATUS_CHOICES, default='pending')
+
+    created_at = models.DateTimeField(default=timezone.now)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    processing_error = models.TextField(blank=True, null=True)
+
+
+class ServiceTitanToken(models.Model):
+    """Cache for ServiceTitan OAuth tokens (they expire after ~15 minutes)"""
+
+    token = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def is_valid(self):
+        """Check if token is still valid (less than 14:30 minutes old)"""
+        from datetime import timedelta
+        expiry_time = timedelta(minutes=14, seconds=30)
+        return (timezone.now() - self.created_at) < expiry_time
+
+    @classmethod
+    def get_valid_token(cls):
+        """Get a valid token or generate a new one if needed"""
+        latest_token = cls.objects.order_by('-created_at').first()
+
+        if not latest_token or not latest_token.is_valid:
+            from .servicetitan import ServiceTitanAPI
+            st_api = ServiceTitanAPI()
+            new_token = st_api.get_token()
+            latest_token = cls.objects.create(token=new_token)
+
+        return latest_token.token
+
+
+================================================================================
+5. SERVICETITAN API INTEGRATION
+================================================================================
+
+# servicetitan.py
+
+import os
+import requests
+from requests.structures import CaseInsensitiveDict
+import logging
+from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
+
+
+class ServiceTitanAPI:
+    """ServiceTitan API client for fetching call recordings"""
+
+    def __init__(self):
+        self.client_id = os.environ.get('CLIENT_ID')
+        self.client_secret = os.environ.get('CLIENT_SECRET')
+        self.st_app_key = os.environ.get('ST_APP_KEY')
+        self.tenant_id = "YOUR_TENANT_ID"  # <-- Replace with your tenant ID
+
+        if not all([self.client_id, self.client_secret, self.st_app_key]):
+            raise ValueError("ServiceTitan credentials not configured in environment")
+
+    def get_token(self):
+        """Get OAuth access token from ServiceTitan"""
+        url = "https://auth.servicetitan.io/connect/token"
+        headers = CaseInsensitiveDict()
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+        data = f"grant_type=client_credentials&client_id={self.client_id}&client_secret={self.client_secret}"
+
+        resp = requests.post(url, headers=headers, data=data)
+
+        if resp.status_code != 200:
+            logger.error(f"ServiceTitan auth failed: {resp.text}")
+            raise ValueError(f"Authentication failed: {resp.status_code}")
+
+        return resp.json()['access_token']
+
+    def get_calls_by_timerange(self, start_datetime):
+        """
+        Get calls within a 1-minute window from the specified datetime
+
+        Args:
+            start_datetime: ISO format datetime string (in UTC)
+
+        Returns:
+            list: Calls with recording URLs available
+        """
+        try:
+            # Parse the datetime and create 1-minute window
+            start_dt = datetime.fromisoformat(start_datetime.replace('Z', '+00:00'))
+            end_dt = start_dt + timedelta(minutes=1)
+
+            # Format for API (remove timezone info)
+            start_str = start_dt.strftime('%Y-%m-%dT%H:%M:%S')
+            end_str = end_dt.strftime('%Y-%m-%dT%H:%M:%S')
+
+            logger.info(f"Fetching calls from {start_str} to {end_str}")
+
+            access_token = self.get_token()
+
+            headers = CaseInsensitiveDict()
+            headers['Authorization'] = f'{access_token}'
+            headers['ST-App-Key'] = f'{self.st_app_key}'
+
+            all_calls = []
+            has_more = True
+            page = 1
+
+            while has_more:
+                url = f"https://api.servicetitan.io/telecom/v3/tenant/{self.tenant_id}/calls"
+                url += f"?createdOnOrAfter={start_str}&createdBefore={end_str}&page={page}"
+
+                logger.info(f"Fetching page {page}")
+                resp = requests.get(url, headers=headers, timeout=30)
+
+                if resp.status_code != 200:
+                    logger.error(f"ServiceTitan API error: {resp.text}")
+                    raise ValueError(f"Failed to fetch calls: {resp.status_code}")
+
+                data = resp.json()
+                has_more = data.get("hasMore", False)
+                calls = data.get("data", [])
+                all_calls.extend(calls)
+                page += 1
+
+            # Filter calls that have recording URLs
+            calls_with_recordings = []
+            for call_data in all_calls:
+                lead_call = call_data.get('leadCall', {})
+                if lead_call and lead_call.get('recordingUrl'):
+                    agent = lead_call.get('agent')
+                    agent_name = agent.get('name', 'Unknown') if agent else 'Unknown'
+
+                    customer = lead_call.get('customer')
+                    customer_name = customer.get('name', 'Unknown') if customer else 'Unknown'
+
+                    formatted_call = {
+                        'id': lead_call.get('id'),
+                        'receivedOn': lead_call.get('receivedOn'),
+                        'duration': lead_call.get('duration'),
+                        'from': lead_call.get('from'),
+                        'to': lead_call.get('to'),
+                        'direction': lead_call.get('direction'),
+                        'recordingUrl': lead_call.get('recordingUrl'),
+                        'agentName': agent_name,
+                        'customerName': customer_name
+                    }
+                    calls_with_recordings.append(formatted_call)
+
+            logger.info(f"Found {len(all_calls)} total calls, {len(calls_with_recordings)} with recordings")
+            return calls_with_recordings
+
+        except Exception as e:
+            logger.error(f"Error fetching calls by timerange: {str(e)}")
+            raise
+
+    def download_call_recording(self, call_id):
+        """
+        Download call recording as MP3
+
+        Args:
+            call_id: ServiceTitan call ID
+
+        Returns:
+            bytes: MP3 audio data
+        """
+        try:
+            access_token = self.get_token()
+
+            headers = CaseInsensitiveDict()
+            headers['Authorization'] = f'{access_token}'
+            headers['ST-App-Key'] = f'{self.st_app_key}'
+
+            url = f"https://api.servicetitan.io/telecom/v2/tenant/{self.tenant_id}/calls/{call_id}/recording"
+
+            logger.info(f"Downloading recording for call {call_id}")
+            resp = requests.get(url, headers=headers, stream=True)
+
+            if resp.status_code > 299:
+                logger.error(f"ServiceTitan API error: {resp.text}")
+                raise ValueError(f"Failed to download recording: {resp.status_code}")
+
+            # Collect all chunks into bytes
+            audio_data = b''
+            for chunk in resp.iter_content(chunk_size=8192):
+                if chunk:
+                    audio_data += chunk
+
+            logger.info(f"Downloaded {len(audio_data)} bytes for call {call_id}")
+            return audio_data
+
+        except Exception as e:
+            logger.error(f"Error downloading call {call_id}: {str(e)}")
+            raise
+
+
+================================================================================
+6. TRANSCRIPTION SERVICE (AssemblyAI)
+================================================================================
+
+# transcription_service.py
+
+import os
+import time
+import requests
+import tempfile
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class AssemblyAIService:
+    """AssemblyAI transcription service with speaker diarization"""
+
+    def __init__(self):
+        self.api_key = os.environ.get('ASSEMBLYAI_API_KEY')
+        if not self.api_key:
+            raise ValueError("ASSEMBLYAI_API_KEY not set")
+
+    def transcribe_mp3(self, mp3_data):
+        """
+        Transcribe MP3 audio data with speaker diarization
+
+        Args:
+            mp3_data: bytes - Raw MP3 audio data
+
+        Returns:
+            dict: {
+                'transcript': str,
+                'speaker_data': {
+                    'utterances': [...],
+                    'speaker_transcript': str,
+                    'speakers_detected': int,
+                    'audio_duration': float
+                },
+                'duration': float
+            }
+        """
+        # Write MP3 to temp file
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp3')
+        temp_file.write(mp3_data)
+        temp_file.close()
+
+        try:
+            # Step 1: Upload to AssemblyAI
+            upload_url = self._upload_file(temp_file.name)
+
+            # Step 2: Request transcription with speaker diarization
+            transcript_id = self._request_transcription(upload_url)
+
+            # Step 3: Poll for results
+            result_data = self._poll_for_results(transcript_id)
+
+            # Step 4: Format results
+            return self._format_results(result_data)
+
+        finally:
+            if os.path.exists(temp_file.name):
+                os.unlink(temp_file.name)
+
+    def _upload_file(self, file_path):
+        """Upload audio file to AssemblyAI"""
+        upload_url = "https://api.assemblyai.com/v2/upload"
+        headers = {
+            "authorization": self.api_key,
+            "Content-Type": "application/octet-stream"
+        }
+
+        with open(file_path, 'rb') as f:
+            file_data = f.read()
+
+        response = requests.post(upload_url, headers=headers, data=file_data)
+
+        if response.status_code != 200:
+            raise ValueError(f"AssemblyAI upload failed: {response.text}")
+
+        audio_url = response.json()['upload_url']
+        logger.info(f"File uploaded to AssemblyAI: {audio_url}")
+        return audio_url
+
+    def _request_transcription(self, audio_url):
+        """Request transcription with speaker diarization"""
+        transcript_url = "https://api.assemblyai.com/v2/transcript"
+        headers = {"authorization": self.api_key}
+
+        request_data = {
+            "audio_url": audio_url,
+            "speaker_labels": True,  # Enable speaker diarization
+            "punctuate": True,
+            "format_text": True,
+            "language_code": "en"
+        }
+
+        response = requests.post(transcript_url, json=request_data, headers=headers)
+
+        if response.status_code != 200:
+            raise ValueError(f"AssemblyAI transcription request failed: {response.text}")
+
+        transcript_id = response.json()['id']
+        logger.info(f"AssemblyAI job submitted: {transcript_id}")
+        return transcript_id
+
+    def _poll_for_results(self, transcript_id):
+        """Poll AssemblyAI until transcription is complete"""
+        result_url = f"https://api.assemblyai.com/v2/transcript/{transcript_id}"
+        headers = {"authorization": self.api_key}
+
+        for i in range(60):  # 5 minutes max (60 * 5 seconds)
+            time.sleep(5)
+
+            response = requests.get(result_url, headers=headers)
+            result_data = response.json()
+            status = result_data.get('status', 'unknown')
+
+            logger.info(f"AssemblyAI Poll {i + 1}: Status = {status}")
+
+            if status == 'completed':
+                return result_data
+            elif status == 'error':
+                error_msg = result_data.get('error', 'Unknown error')
+                raise ValueError(f"AssemblyAI processing failed: {error_msg}")
+
+        raise ValueError("AssemblyAI processing timed out")
+
+    def _format_results(self, result_data):
+        """Format AssemblyAI results into standardized structure"""
+        full_transcript = result_data.get('text', '')
+
+        utterances = []
+        speaker_transcript_lines = []
+        speakers_found = set()
+
+        if 'utterances' in result_data and result_data['utterances']:
+            for utterance in result_data['utterances']:
+                speaker = utterance.get('speaker', 'Unknown')
+                speakers_found.add(speaker)
+                text = utterance.get('text', '')
+
+                if text.strip():
+                    speaker_transcript_lines.append(f"{speaker}: {text}")
+
+                    utterances.append({
+                        'speaker': speaker,
+                        'text': text,
+                        'start': utterance.get('start', 0) / 1000,  # Convert ms to seconds
+                        'end': utterance.get('end', 0) / 1000,
+                        'confidence': utterance.get('confidence', 0)
+                    })
+
+        # Rebuild transcript from utterances for consistency
+        full_transcript = ' '.join([u['text'] for u in utterances]) if utterances else full_transcript
+        duration = result_data.get('audio_duration', 0) / 1000 if result_data.get('audio_duration') else 0
+
+        speaker_data = None
+        if utterances:
+            speaker_data = {
+                'utterances': utterances,
+                'speaker_transcript': '\n'.join(speaker_transcript_lines),
+                'speakers_detected': len(speakers_found),
+                'audio_duration': duration
+            }
+
+        return {
+            'transcript': full_transcript,
+            'speaker_data': speaker_data,
+            'duration': duration
+        }
+
+
+================================================================================
+7. AI ANALYSIS (OpenAI)
+================================================================================
+
+# ai_analysis.py
+
+import os
+import logging
+import re
+from django.utils import timezone
+
+logger = logging.getLogger(__name__)
+
+
+# ServiceTitan-specific prompt for customer service call analysis
+SERVICETITAN_PROMPT = """You are analyzing a CUSTOMER SERVICE conversation for quality assurance.
+
+CONTEXT:
+- This is a customer support interaction
+- Focus on issue resolution, customer satisfaction, and protocol adherence
+- Account for transcription errors but evaluate service quality
+
+SERVICE ANALYSIS REQUIRED:
+1. INTERACTION SUMMARY: Brief summary of the customer issue and resolution
+2. ISSUE RESOLUTION: Was the problem resolved? (fully resolved, partially resolved, unresolved, escalated)
+3. RESPONSE TIME: How quickly was the customer helped? (immediate, prompt, delayed, very delayed)
+4. EMPATHY & RAPPORT: Quality of customer relationship building (excellent, good, fair, poor)
+5. PROTOCOL ADHERENCE: Did agent follow company procedures? (fully, mostly, partially, poorly)
+6. CUSTOMER SATISFACTION: Likely customer satisfaction level (very satisfied, satisfied, neutral, dissatisfied)
+7. TONE: Overall conversation tone (helpful, professional, frustrated, impatient, friendly)
+8. IMPROVEMENT AREAS: Specific suggestions for better service
+
+FORMAT YOUR RESPONSE AS:
+INTERACTION SUMMARY:
+[Issue and resolution summary]
+
+ISSUE RESOLUTION:
+[Status with explanation]
+
+RESPONSE TIME:
+[Rating with details]
+
+EMPATHY & RAPPORT:
+[Rating with examples]
+
+PROTOCOL ADHERENCE:
+[Rating with details]
+
+CUSTOMER SATISFACTION:
+[Likely satisfaction level with reasoning]
+
+TONE:
+[Single word or phrase]
+
+IMPROVEMENT AREAS:
+[Specific coaching suggestions]"""
+
+
+# Default prompt for general conversations
+DEFAULT_PROMPT = """You are analyzing a conversation that was recorded and transcribed automatically.
+
+IMPORTANT CONTEXT:
+- This text comes from audio recording → speech-to-text transcription
+- There may be transcription errors: wrong words, missing phrases, misattributed speakers
+- When you encounter confusing parts, try to infer what the error might be
+- Look for overall patterns and meaning rather than getting stuck on unclear segments
+
+ANALYSIS REQUIRED:
+1. SUMMARY: Provide a concise summary of what was discussed (2-3 paragraphs)
+2. TONE: Assess the overall tone (examples: cordial, tense, angry, friendly, professional, casual)
+3. IMPORTANCE: Rate the importance level (trivial, average, important, critical)
+
+FORMAT YOUR RESPONSE AS:
+SUMMARY:
+[Your summary here]
+
+TONE:
+[Single word or short phrase]
+
+IMPORTANCE:
+[Single word: trivial, average, important, or critical]
+
+ADDITIONAL NOTES:
+[Any observations about transcription quality or other relevant details]"""
+
+
+def get_prompt_for_session(session):
+    """Get the appropriate AI analysis prompt for a recording session"""
+    if (session.session_metadata and
+            session.session_metadata.get('source') == 'servicetitan'):
+        return SERVICETITAN_PROMPT
+    return DEFAULT_PROMPT
+
+
+def analyze_conversation_with_openai(conversation_text, system_prompt):
+    """
+    Send conversation to OpenAI for analysis
+
+    Args:
+        conversation_text: Formatted conversation string
+        system_prompt: System prompt to use
+
+    Returns:
+        str: AI response or None if failed
+    """
+    try:
+        api_key = os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            logger.error("OPENAI_API_KEY not set")
+            return None
+
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+
+        user_prompt = f"Please analyze this conversation:\n\n{conversation_text}"
+
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",  # Or "gpt-4" for better quality
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=1000,
+            temperature=0.3  # Low temperature for consistent output
+        )
+
+        ai_response = response.choices[0].message.content
+        logger.info(f"OpenAI analysis completed, response length: {len(ai_response)}")
+
+        return ai_response
+
+    except Exception as e:
+        logger.error(f"Error calling OpenAI API: {str(e)}")
+        return None
+
+
+def parse_ai_response(analysis, ai_response):
+    """
+    Parse OpenAI response and extract structured data fields
+
+    Args:
+        analysis: ConversationAnalysis model instance to update
+        ai_response: Raw AI response text
+    """
+    try:
+        analysis.full_ai_response = ai_response
+
+        # Determine analysis type
+        analysis_type = 'general'
+        if (analysis.session.session_metadata and
+                analysis.session.session_metadata.get('source') == 'servicetitan'):
+            analysis_type = 'customer_service'
+
+        # Parse ALL sections dynamically
+        lines = ai_response.split('\n')
+        current_section_name = None
+        content_lines = []
+        all_fields = {}
+        field_order = 0
+
+        # Pattern to match section headers like "SECTION NAME:" or "SECTION_NAME:"
+        section_pattern = re.compile(r'^([A-Z][A-Z\s&_-]*):(.*)$')
+
+        for line in lines:
+            line_stripped = line.strip()
+
+            if not line_stripped:
+                # Empty line - save current section
+                if current_section_name and content_lines:
+                    content = '\n'.join(content_lines).strip()
+                    if content:
+                        field_order += 1
+                        all_fields[current_section_name] = {
+                            'value': content,
+                            'order': field_order
+                        }
+                        _store_legacy_field(analysis, current_section_name, content)
+
+                    current_section_name = None
+                    content_lines = []
+                continue
+
+            # Check if this line starts a new section
+            match = section_pattern.match(line_stripped)
+            if match:
+                # Save previous section
+                if current_section_name and content_lines:
+                    content = '\n'.join(content_lines).strip()
+                    if content:
+                        field_order += 1
+                        all_fields[current_section_name] = {
+                            'value': content,
+                            'order': field_order
+                        }
+                        _store_legacy_field(analysis, current_section_name, content)
+
+                # Start new section
+                current_section_name = match.group(1).strip()
+                content_lines = []
+
+                # Check for content on same line as header
+                remainder = match.group(2).strip()
+                if remainder:
+                    content_lines.append(remainder)
+
+            elif current_section_name:
+                content_lines.append(line_stripped)
+
+        # Handle last section
+        if current_section_name and content_lines:
+            content = '\n'.join(content_lines).strip()
+            if content:
+                field_order += 1
+                all_fields[current_section_name] = {
+                    'value': content,
+                    'order': field_order
+                }
+                _store_legacy_field(analysis, current_section_name, content)
+
+        # Store structured analysis
+        analysis.structured_analysis = {
+            'analysis_type': analysis_type,
+            'fields': all_fields,
+            'metadata': {
+                'parsed_at': timezone.now().isoformat(),
+                'field_count': len(all_fields)
+            }
+        }
+
+        logger.info(f"Parsed {len(all_fields)} fields: {list(all_fields.keys())}")
+
+    except Exception as e:
+        logger.error(f"Error parsing AI response: {str(e)}")
+
+
+def _store_legacy_field(analysis, field_name, content):
+    """Store content in legacy fields for backward compatibility"""
+    field_name_upper = field_name.upper()
+
+    if 'SUMMARY' in field_name_upper or 'INTERACTION SUMMARY' in field_name_upper:
+        analysis.summary = content
+
+    elif field_name_upper == 'TONE':
+        analysis.tone = content.split('\n')[0].split('.')[0].strip()
+
+    elif 'IMPORTANCE' in field_name_upper:
+        analysis.importance = content.split()[0].lower().strip()
+
+    elif 'CUSTOMER SATISFACTION' in field_name_upper:
+        if 'very satisfied' in content.lower():
+            analysis.importance = 'important'
+        elif 'dissatisfied' in content.lower():
+            analysis.importance = 'critical'
+        else:
+            analysis.importance = 'average'
+
+
+def process_conversation_with_ai(session):
+    """
+    Complete AI analysis pipeline for a session
+
+    Args:
+        session: RecordingSession instance
+
+    Returns:
+        ConversationAnalysis instance or None
+    """
+    from .models import ConversationAnalysis  # Adjust import path as needed
+
+    try:
+        # Check if analysis already exists
+        existing = ConversationAnalysis.objects.filter(session=session).first()
+        if existing:
+            logger.info(f"Analysis already exists for session {session.id}")
+            return existing
+
+        # Create analysis record
+        analysis = ConversationAnalysis.objects.create(
+            session=session,
+            analysis_status='processing'
+        )
+
+        # Build conversation text
+        # Prefer speaker-aware transcript if available
+        conversation_text = ""
+        if (session.session_metadata and
+                session.session_metadata.get('enhanced_transcripts', {}).get('speaker_aware_transcript')):
+            conversation_text = session.session_metadata['enhanced_transcripts']['speaker_aware_transcript']
+        else:
+            conversation_text = session.full_transcript or ""
+
+        if not conversation_text or len(conversation_text.strip()) < 10:
+            analysis.analysis_status = 'error'
+            analysis.processing_error = 'Insufficient transcript content'
+            analysis.save()
+            return None
+
+        # Get appropriate prompt
+        system_prompt = get_prompt_for_session(session)
+
+        # Call OpenAI
+        ai_response = analyze_conversation_with_openai(conversation_text, system_prompt)
+
+        if ai_response:
+            parse_ai_response(analysis, ai_response)
+            analysis.analysis_status = 'completed'
+            analysis.processed_at = timezone.now()
+        else:
+            analysis.analysis_status = 'error'
+            analysis.processing_error = 'Failed to get AI response'
+
+        analysis.save()
+        return analysis
+
+    except Exception as e:
+        logger.error(f"Error processing conversation with AI: {str(e)}")
+        return None
+
+
+================================================================================
+8. ADMIN VIEWS (Django Backend)
+================================================================================
+
+# admin_views.py
+
+from django.views import View
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from django.shortcuts import render
+from django.core.files.base import ContentFile
+from django.db import connection
+from django.utils import timezone
+import json
+import logging
+import threading
+import os
+import tempfile
+
+from .models import RecordingSession, AudioChunk, ConversationAnalysis
+from .servicetitan import ServiceTitanAPI
+from .transcription_service import AssemblyAIService
+from .ai_analysis import process_conversation_with_ai, get_prompt_for_session
+
+logger = logging.getLogger(__name__)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CallSearchView(View):
+    """Search for ServiceTitan calls within a time range"""
+
+    def post(self, request):
+        """Search for calls with recordings in a 1-minute window"""
+        try:
+            data = json.loads(request.body)
+            datetime_str = data.get('datetime', '').strip()
+
+            if not datetime_str:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'DateTime is required'
+                }, status=400)
+
+            logger.info(f"Searching for ServiceTitan calls at {datetime_str}")
+
+            # Get calls from ServiceTitan
+            st_api = ServiceTitanAPI()
+            calls = st_api.get_calls_by_timerange(datetime_str)
+
+            # Check if any calls were already imported
+            for call in calls:
+                call_id = call.get('id')
+                if call_id:
+                    existing = RecordingSession.objects.filter(
+                        session_name__contains=f"Call {call_id}"
+                    ).exists()
+                    call['already_imported'] = existing
+                else:
+                    call['already_imported'] = False
+
+            return JsonResponse({
+                'success': True,
+                'calls': calls,
+                'total_found': len(calls),
+                'message': f'Found {len(calls)} calls with recordings'
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            logger.error(f"Call search error: {str(e)}")
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CallImportView(View):
+    """Import and process call recordings from ServiceTitan"""
+
+    def get(self, request):
+        """Render the call import form"""
+        return render(request, 'admin/call_import.html')  # Adjust template path
+
+    def post(self, request):
+        """Process call import request"""
+        try:
+            data = json.loads(request.body)
+            call_id = data.get('call_id', '').strip()
+            duration = data.get('duration', '')
+            received_on = data.get('received_on', '')
+
+            if not call_id:
+                return JsonResponse({'success': False, 'error': 'Call ID required'}, status=400)
+
+            # Check if already imported
+            if RecordingSession.objects.filter(session_name__contains=f"Call {call_id}").exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Call {call_id} has already been imported'
+                }, status=400)
+
+            # Download recording
+            st_api = ServiceTitanAPI()
+            mp3_data = st_api.download_call_recording(call_id)
+
+            # Create session and start processing
+            session = self._process_call_recording(call_id, mp3_data, duration, received_on)
+
+            return JsonResponse({
+                'success': True,
+                'message': f'Call {call_id} imported successfully',
+                'session_id': str(session.id),
+                'total_chunks': session.chunks.count()
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            logger.error(f"Call import error: {str(e)}")
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    def _process_call_recording(self, call_id, mp3_data, duration=None, received_on=None):
+        """Process ServiceTitan call recording"""
+
+        # Parse duration string (format: "00:05:32" -> seconds)
+        duration_seconds = None
+        if duration and ':' in duration:
+            try:
+                parts = duration.split(':')
+                if len(parts) == 3:  # HH:MM:SS
+                    duration_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(float(parts[2]))
+                elif len(parts) == 2:  # MM:SS
+                    duration_seconds = int(parts[0]) * 60 + int(float(parts[1]))
+            except ValueError:
+                logger.warning(f"Could not parse duration: {duration}")
+
+        # Create RecordingSession
+        session = RecordingSession.objects.create(
+            session_name=f"ServiceTitan Call {call_id}",
+            processing_status='pending',
+            is_completed=True,
+            session_metadata={
+                'source': 'servicetitan',
+                'call_id': call_id,
+                'original_duration': duration,
+                'duration_seconds': duration_seconds,
+                'actual_call_datetime': received_on
+            }
+        )
+
+        # Store MP3 as single chunk
+        chunk = AudioChunk.objects.create(
+            session=session,
+            chunk_order=0,
+            audio_file=ContentFile(mp3_data, name=f'call_{call_id}.mp3'),
+            file_size=len(mp3_data),
+            status='uploaded'
+        )
+
+        session.processing_status = 'processing'
+        session.save()
+
+        # Start background processing
+        thread = threading.Thread(
+            target=self._process_chunk_background,
+            args=(chunk.id,),
+            daemon=True
+        )
+        thread.start()
+
+        return session
+
+    def _process_chunk_background(self, chunk_id):
+        """Background thread to process transcription and AI analysis"""
+        try:
+            chunk = AudioChunk.objects.get(id=chunk_id)
+            chunk.status = 'processing'
+            chunk.save()
+
+            # Transcribe with AssemblyAI
+            service = AssemblyAIService()
+            chunk.audio_file.seek(0)
+            mp3_data = chunk.audio_file.read()
+
+            result = service.transcribe_mp3(mp3_data)
+
+            # Update chunk
+            chunk.transcript_text = result['transcript'].strip()
+            chunk.speaker_segments = result['speaker_data']
+            chunk.status = 'transcribed'
+            chunk.processed_at = timezone.now()
+
+            # Use ServiceTitan duration from metadata if available
+            session = chunk.session
+            if (session.session_metadata and
+                    session.session_metadata.get('duration_seconds')):
+                chunk.duration_seconds = session.session_metadata['duration_seconds']
+            elif result.get('duration'):
+                chunk.duration_seconds = result['duration']
+
+            chunk.save()
+
+            # Update session
+            session.full_transcript = result['transcript'].strip()
+            session.processing_status = 'completed'
+
+            # Build enhanced speaker-aware transcript
+            self._build_enhanced_transcript(session)
+
+            session.save()
+
+            # Trigger AI analysis in another thread
+            ai_thread = threading.Thread(
+                target=self._run_ai_analysis,
+                args=(session.id,),
+                daemon=True
+            )
+            ai_thread.start()
+
+            logger.info(f"Successfully processed call {chunk_id}")
+
+        except Exception as e:
+            logger.error(f"Error processing chunk: {str(e)}")
+            try:
+                chunk = AudioChunk.objects.get(id=chunk_id)
+                chunk.status = 'error'
+                chunk.processing_error = str(e)
+                chunk.save()
+            except:
+                pass
+        finally:
+            connection.close()
+
+    def _build_enhanced_transcript(self, session):
+        """Build speaker-aware transcript and store in metadata"""
+        chunks = session.chunks.filter(status='transcribed').order_by('chunk_order')
+
+        speaker_lines = []
+        for chunk in chunks:
+            if chunk.speaker_segments and chunk.speaker_segments.get('speaker_transcript'):
+                speaker_lines.append(chunk.speaker_segments['speaker_transcript'])
+            elif chunk.transcript_text:
+                speaker_lines.append(f"[Speaker]: {chunk.transcript_text}")
+
+        if not session.session_metadata:
+            session.session_metadata = {}
+
+        session.session_metadata['enhanced_transcripts'] = {
+            'speaker_aware_transcript': '\n'.join(speaker_lines),
+            'transcript_updated_at': timezone.now().isoformat()
+        }
+
+    def _run_ai_analysis(self, session_id):
+        """Run AI analysis in background"""
+        try:
+            session = RecordingSession.objects.get(id=session_id)
+            process_conversation_with_ai(session)
+        except Exception as e:
+            logger.error(f"AI analysis failed: {str(e)}")
+        finally:
+            connection.close()
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class CallProcessingStatusView(View):
+    """Check the processing status of an imported call"""
+
+    def get(self, request, session_id):
+        try:
+            session = RecordingSession.objects.get(id=session_id)
+
+            status_data = {
+                'session_id': str(session.id),
+                'session_name': session.session_name,
+                'transcription_status': session.processing_status,
+                'chunks_processed': session.chunks.filter(status='transcribed').count(),
+                'total_chunks': session.chunks.count(),
+                'ai_analysis_status': 'pending',
+                'overall_status': 'processing'
+            }
+
+            # Check AI analysis
+            try:
+                analysis = session.ai_analysis
+                status_data['ai_analysis_status'] = analysis.analysis_status
+
+                if analysis.analysis_status == 'completed':
+                    status_data['ai_results'] = {
+                        'summary': analysis.summary,
+                        'tone': analysis.tone,
+                        'importance': analysis.importance
+                    }
+            except ConversationAnalysis.DoesNotExist:
+                pass
+
+            # Determine overall status
+            if session.processing_status == 'error':
+                status_data['overall_status'] = 'error'
+            elif (session.processing_status == 'completed' and
+                  status_data['ai_analysis_status'] == 'completed'):
+                status_data['overall_status'] = 'completed'
+            else:
+                status_data['overall_status'] = 'processing'
+
+            return JsonResponse({'success': True, 'status': status_data})
+
+        except RecordingSession.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Session not found'}, status=404)
+
+
+================================================================================
+9. URL ROUTING
+================================================================================
+
+# admin_urls.py
+
+from django.urls import path
+from .admin_views import (
+    CallImportView,
+    CallSearchView,
+    CallProcessingStatusView,
+)
+
+app_name = 'audio_admin'
+
+urlpatterns = [
+    path('import-call/', CallImportView.as_view(), name='import_call'),
+    path('search-calls/', CallSearchView.as_view(), name='search_calls'),
+    path('call-status/<uuid:session_id>/', CallProcessingStatusView.as_view(), name='call_status'),
+]
+
+
+# Main urls.py - include the admin URLs
+
+from django.urls import path, include
+
+urlpatterns = [
+    # ... other patterns ...
+    path('audio-admin/', include('your_app.admin_urls')),
+]
+
+
+================================================================================
+10. FRONTEND TEMPLATE (HTML/JavaScript)
+================================================================================
+
+<!-- call_import.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Import ServiceTitan Call</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="date"], input[type="time"] { padding: 8px; font-size: 14px; width: 200px; }
+        button { padding: 10px 20px; font-size: 14px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; border: none; }
+        .btn-success { background: #28a745; color: white; border: none; }
+        .btn-secondary { background: #6c757d; color: white; border: none; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f5f5f5; }
+        .progress { height: 25px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+        .progress-bar { height: 100%; background: #007bff; transition: width 0.3s; }
+        .progress-bar.bg-success { background: #28a745; }
+        .progress-bar.bg-danger { background: #dc3545; }
+        .alert { padding: 15px; margin: 15px 0; border-radius: 4px; }
+        .alert-success { background: #d4edda; color: #155724; }
+        .alert-danger { background: #f8d7da; color: #721c24; }
+        .alert-warning { background: #fff3cd; color: #856404; }
+        .hidden { display: none; }
+        .status-section { margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>Import ServiceTitan Call Recording</h1>
+
+    <!-- Search Form -->
+    <div class="form-group">
+        <label for="searchDate">Date</label>
+        <input type="date" id="searchDate" required>
+    </div>
+    <div class="form-group">
+        <label for="searchTime">Time</label>
+        <input type="time" id="searchTime" required>
+    </div>
+    <button class="btn-primary" id="searchBtn" onclick="searchCalls()">Search for Calls</button>
+
+    <!-- Status Messages -->
+    <div id="statusMessage" class="alert hidden"></div>
+
+    <!-- Search Progress -->
+    <div id="searchProgress" class="hidden" style="margin-top: 20px;">
+        <div class="progress">
+            <div class="progress-bar" style="width: 100%; animation: progress-animation 1s infinite;">
+                Searching...
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Table -->
+    <div id="resultsSection" class="hidden">
+        <h2>Available Calls with Recordings</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Agent</th>
+                    <th>Customer</th>
+                    <th>Duration</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="callsTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Processing Status -->
+    <div id="processingStatus" class="status-section hidden">
+        <h3>Processing Status</h3>
+        <div style="display: flex; gap: 40px;">
+            <div style="flex: 1;">
+                <h4>Transcription</h4>
+                <div class="progress">
+                    <div id="transcriptionProgress" class="progress-bar" style="width: 0%"></div>
+                </div>
+                <small>Status: <span id="transcriptionLabel">Pending</span></small>
+            </div>
+            <div style="flex: 1;">
+                <h4>AI Analysis</h4>
+                <div class="progress">
+                    <div id="aiProgress" class="progress-bar" style="width: 0%"></div>
+                </div>
+                <small>Status: <span id="aiLabel">Waiting for transcription</span></small>
+            </div>
+        </div>
+
+        <div id="aiResults" class="hidden" style="margin-top: 20px;">
+            <div class="alert alert-success">
+                <h4>Analysis Complete!</h4>
+                <p><strong>Tone:</strong> <span id="resultTone"></span></p>
+                <p><strong>Importance:</strong> <span id="resultImportance"></span></p>
+                <p><strong>Summary:</strong></p>
+                <p id="resultSummary"></p>
+            </div>
+        </div>
+    </div>
+
+<script>
+let pollingInterval = null;
+let currentSessionId = null;
+
+// Set default date/time to now
+window.onload = function() {
+    const now = new Date();
+    document.getElementById('searchDate').valueAsDate = now;
+    document.getElementById('searchTime').value = now.toTimeString().slice(0, 5);
+};
+
+function showStatus(type, message) {
+    const statusDiv = document.getElementById('statusMessage');
+    statusDiv.className = `alert alert-${type}`;
+    statusDiv.textContent = message;
+    statusDiv.classList.remove('hidden');
+}
+
+async function searchCalls() {
+    const date = document.getElementById('searchDate').value;
+    const time = document.getElementById('searchTime').value;
+
+    if (!date || !time) {
+        showStatus('danger', 'Please select both date and time');
+        return;
+    }
+
+    // Convert to UTC
+    const localDateTime = new Date(`${date}T${time}`);
+    const utcDateTime = localDateTime.toISOString();
+
+    document.getElementById('searchBtn').disabled = true;
+    document.getElementById('searchProgress').classList.remove('hidden');
+    document.getElementById('resultsSection').classList.add('hidden');
+    document.getElementById('statusMessage').classList.add('hidden');
+
+    try {
+        const response = await fetch('/audio-admin/search-calls/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({datetime: utcDateTime})
+        });
+
+        const data = await response.json();
+        document.getElementById('searchProgress').classList.add('hidden');
+
+        if (data.success && data.calls.length > 0) {
+            displayCalls(data.calls);
+        } else if (data.success) {
+            showStatus('warning', 'No calls with recordings found in selected time range');
+        } else {
+            showStatus('danger', data.error || 'Search failed');
+        }
+    } catch (error) {
+        document.getElementById('searchProgress').classList.add('hidden');
+        showStatus('danger', 'Network error: ' + error.message);
+    } finally {
+        document.getElementById('searchBtn').disabled = false;
+    }
+}
+
+function displayCalls(calls) {
+    const tbody = document.getElementById('callsTableBody');
+    tbody.innerHTML = '';
+
+    // Store calls data for import function
+    window.callsData = {};
+
+    calls.forEach(call => {
+        window.callsData[call.id] = call;
+
+        const row = tbody.insertRow();
+        const callTime = new Date(call.receivedOn).toLocaleTimeString();
+
+        const importBtn = call.already_imported
+            ? '<span style="color: #6c757d;">Already Imported</span>'
+            : `<button class="btn-success" onclick="importCall('${call.id}')">Import</button>`;
+
+        row.innerHTML = `
+            <td>${callTime}</td>
+            <td>${call.agentName || 'Unknown'}</td>
+            <td>${call.customerName || 'Unknown'}</td>
+            <td>${call.duration || 'N/A'}</td>
+            <td>${call.from || 'N/A'}</td>
+            <td>${call.to || 'N/A'}</td>
+            <td>${importBtn}</td>
+        `;
+    });
+
+    document.getElementById('resultsSection').classList.remove('hidden');
+}
+
+async function importCall(callId) {
+    const call = window.callsData[callId];
+    if (!confirm(`Import call for ${call.customerName || 'Unknown'}?`)) return;
+
+    // Stop any existing polling
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+    }
+
+    // Reset UI
+    document.getElementById('processingStatus').classList.remove('hidden');
+    document.getElementById('aiResults').classList.add('hidden');
+    document.getElementById('transcriptionProgress').style.width = '0%';
+    document.getElementById('transcriptionProgress').className = 'progress-bar';
+    document.getElementById('transcriptionLabel').textContent = 'Pending';
+    document.getElementById('aiProgress').style.width = '0%';
+    document.getElementById('aiProgress').className = 'progress-bar';
+    document.getElementById('aiLabel').textContent = 'Waiting for transcription';
+
+    try {
+        const response = await fetch('/audio-admin/import-call/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                call_id: callId,
+                duration: call.duration || '',
+                received_on: call.receivedOn || ''
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showStatus('success', `Call imported! Session: ${data.session_id}`);
+            currentSessionId = data.session_id;
+            startStatusPolling(data.session_id);
+        } else {
+            showStatus('danger', data.error || 'Import failed');
+        }
+    } catch (error) {
+        showStatus('danger', 'Network error: ' + error.message);
+    }
+}
+
+function startStatusPolling(sessionId) {
+    checkStatus(sessionId);
+    pollingInterval = setInterval(() => checkStatus(sessionId), 3000);
+}
+
+async function checkStatus(sessionId) {
+    if (sessionId !== currentSessionId) return;
+
+    try {
+        const response = await fetch(`/audio-admin/call-status/${sessionId}/`);
+        const data = await response.json();
+
+        if (data.success && sessionId === currentSessionId) {
+            updateStatusDisplay(data.status);
+
+            if (data.status.overall_status === 'completed' ||
+                data.status.overall_status === 'error') {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+        }
+    } catch (error) {
+        console.error('Status check error:', error);
+    }
+}
+
+function updateStatusDisplay(status) {
+    const transProgress = document.getElementById('transcriptionProgress');
+    const transLabel = document.getElementById('transcriptionLabel');
+    const aiProgress = document.getElementById('aiProgress');
+    const aiLabel = document.getElementById('aiLabel');
+
+    // Transcription status
+    if (status.transcription_status === 'completed') {
+        transProgress.style.width = '100%';
+        transProgress.className = 'progress-bar bg-success';
+        transLabel.textContent = 'Complete';
+    } else if (status.transcription_status === 'processing') {
+        const pct = status.total_chunks > 0
+            ? (status.chunks_processed / status.total_chunks * 100)
+            : 50;
+        transProgress.style.width = pct + '%';
+        transLabel.textContent = 'Processing...';
+    } else if (status.transcription_status === 'error') {
+        transProgress.style.width = '100%';
+        transProgress.className = 'progress-bar bg-danger';
+        transLabel.textContent = 'Error';
+    }
+
+    // AI analysis status
+    if (status.ai_analysis_status === 'completed') {
+        aiProgress.style.width = '100%';
+        aiProgress.className = 'progress-bar bg-success';
+        aiLabel.textContent = 'Complete';
+
+        if (status.ai_results) {
+            document.getElementById('resultTone').textContent = status.ai_results.tone || 'N/A';
+            document.getElementById('resultImportance').textContent = status.ai_results.importance || 'N/A';
+            document.getElementById('resultSummary').textContent = status.ai_results.summary || 'No summary';
+            document.getElementById('aiResults').classList.remove('hidden');
+        }
+    } else if (status.ai_analysis_status === 'processing') {
+        aiProgress.style.width = '50%';
+        aiLabel.textContent = 'Analyzing...';
+    } else if (status.ai_analysis_status === 'error') {
+        aiProgress.style.width = '100%';
+        aiProgress.className = 'progress-bar bg-danger';
+        aiLabel.textContent = 'Error';
+    }
+}
+</script>
+</body>
+</html>
+
+
+================================================================================
+11. COMPLETE FLOW DIAGRAM
+================================================================================
+
+User enters Date/Time in Web Form
+          |
+          v
+[JavaScript] Convert to UTC, POST to /audio-admin/search-calls/
+          |
+          v
+[CallSearchView] -> ServiceTitanAPI.get_calls_by_timerange()
+          |
+          |--- OAuth: POST https://auth.servicetitan.io/connect/token
+          |--- GET https://api.servicetitan.io/telecom/v3/tenant/{id}/calls
+          |
+          v
+Return list of calls with recordings to frontend
+          |
+          v
+User clicks "Import" button
+          |
+          v
+[JavaScript] POST to /audio-admin/import-call/
+          |
+          v
+[CallImportView]
+    1. ServiceTitanAPI.download_call_recording()
+       |--- GET https://api.servicetitan.io/telecom/v2/tenant/{id}/calls/{call_id}/recording
+    2. Create RecordingSession (metadata: source=servicetitan)
+    3. Create AudioChunk (MP3 file)
+    4. Start background thread
+          |
+          v
+[Background Thread]
+    1. AssemblyAIService.transcribe_mp3()
+       |--- POST https://api.assemblyai.com/v2/upload
+       |--- POST https://api.assemblyai.com/v2/transcript (speaker_labels=True)
+       |--- Poll GET https://api.assemblyai.com/v2/transcript/{id}
+    2. Update chunk with transcript + speaker_segments
+    3. Build enhanced speaker-aware transcript
+    4. Start AI analysis thread
+          |
+          v
+[AI Analysis Thread]
+    1. Get prompt (ServiceTitan or default)
+    2. OpenAI API: POST chat.completions.create()
+    3. Parse response into structured_analysis
+    4. Save ConversationAnalysis
+          |
+          v
+[Frontend Polling] GET /audio-admin/call-status/{session_id}/
+          |
+          v
+Display results: Transcript, Tone, Summary, Analysis
+
+
+================================================================================
+12. SPEAKER NAME DETECTION (Optional Enhancement)
+================================================================================
+
+If you want to detect actual speaker names from introductions:
+
+def detect_speaker_names(session):
+    """
+    Use OpenAI to detect speaker names from transcript introductions
+    """
+    # Get first few utterances
+    chunk = session.chunks.first()
+    if not chunk or not chunk.speaker_segments:
+        return
+
+    utterances = chunk.speaker_segments.get('utterances', [])[:10]
+
+    if not utterances:
+        return
+
+    # Build text for analysis
+    intro_text = '\n'.join([f"{u['speaker']}: {u['text']}" for u in utterances])
+
+    prompt = """Analyze this conversation opening and identify speaker names.
+    Look for self-introductions like "Hi, this is John" or "My name is Sarah".
+
+    Return ONLY a JSON object mapping speaker labels to names, like:
+    {"A": "John Smith", "B": "Sarah Jones"}
+
+    If you cannot determine a name, use "Unknown Caller" or "Agent".
+    """
+
+    from openai import OpenAI
+    client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": intro_text}
+        ],
+        max_tokens=200,
+        temperature=0
+    )
+
+    try:
+        name_mapping = json.loads(response.choices[0].message.content)
+
+        # Store in session metadata
+        if not session.session_metadata:
+            session.session_metadata = {}
+        session.session_metadata['speaker_name_mapping'] = {
+            'mapping': name_mapping,
+            'detected_at': timezone.now().isoformat()
+        }
+        session.save()
+
+        # Rebuild transcript with names
+        # (Replace "A:" with "John Smith:", etc.)
+
+    except json.JSONDecodeError:
+        logger.warning("Could not parse speaker name response")
+
+
+================================================================================
+13. ERROR HANDLING NOTES
+================================================================================
+
+Important considerations for production:
+
+1. RATE LIMITS
+   - ServiceTitan API has rate limits
+   - AssemblyAI has concurrent job limits
+   - OpenAI has token-per-minute limits
+   Consider adding delays or queuing for bulk imports
+
+2. TIMEOUTS
+   - ServiceTitan download can be slow for long calls
+   - AssemblyAI transcription can take 1-5 minutes
+   - Set appropriate timeouts and handle gracefully
+
+3. FILE SIZE
+   - AssemblyAI has a 500MB limit
+   - Very long calls may need to be split
+
+4. THREAD SAFETY
+   - Use connection.close() at end of background threads
+   - Be careful with shared state
+
+5. AUTHENTICATION
+   - ServiceTitan tokens expire after 15 minutes
+   - Cache tokens and refresh proactively
+
+6. COST MANAGEMENT
+   - AssemblyAI charges per audio minute
+   - OpenAI charges per token
+   - Consider adding usage tracking
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
+
+This document contains everything needed to recreate the ServiceTitan call
+import, transcription, and AI analysis feature. Copy relevant sections to
+your new project and adapt as needed.
+
+Key files to create:
+- servicetitan.py (API client)
+- transcription_service.py (AssemblyAI wrapper)
+- ai_analysis.py (OpenAI prompts and parsing)
+- admin_views.py (Django views)
+- admin_urls.py (URL routing)
+- models.py (Database models)
+- call_import.html (Frontend template)
+
+Required env vars:
+- CLIENT_ID, CLIENT_SECRET, ST_APP_KEY (ServiceTitan)
+- ASSEMBLYAI_API_KEY
+- OPENAI_API_KEY
